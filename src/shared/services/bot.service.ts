@@ -69,7 +69,8 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         select: { value: true },
       });
       if (!tokenRecord) {
-        throw new Error('Telegram bot token not found in the database');
+        this.logger.error('Telegram bot token not found in the database. Please set it via the admin API.');
+        return; // Don't crash the app, just skip bot initialization
       }
 
       // Load WebApp URL from database or fallback to env
@@ -102,8 +103,8 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         },
       });
     } catch (error) {
-      this.logger.error('Failed to launch Telegram bot', error as Error);
-      throw error;
+      this.logger.error('Failed to launch Telegram bot, continuing without bot functionality', error as Error);
+      // Don't throw - allow app to start without bot
     }
   }
 

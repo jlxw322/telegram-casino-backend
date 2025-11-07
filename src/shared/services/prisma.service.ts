@@ -48,13 +48,17 @@ export class PrismaService
           lastError = error as Error;
           retries--;
           if (retries > 0) {
-            this.logger.warn(`Connection failed, retrying... (${retries} attempts left)`);
+            this.logger.warn(
+              `Connection failed, retrying... (${retries} attempts left)`,
+            );
             await new Promise((resolve) => setTimeout(resolve, 1000));
           }
         }
       }
 
-      this.logger.error('Failed to connect to database after multiple attempts');
+      this.logger.error(
+        'Failed to connect to database after multiple attempts',
+      );
       throw lastError || new Error('Failed to connect to database');
     }
   }

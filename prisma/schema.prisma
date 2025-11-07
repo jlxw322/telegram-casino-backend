@@ -100,7 +100,7 @@ model Aviator {
   id          Int     @id @default(autoincrement())
   startsAt    DateTime
   multiplier  Decimal
-  status      AviatorStatus @default(PENDING)
+  status      AviatorStatus @default(ACTIVE)
 
   bets Bet[]
 
@@ -109,9 +109,8 @@ model Aviator {
 }
 
 enum AviatorStatus {
-  PENDING
-  FINISHED
   ACTIVE
+  FINISHED
 }
 
 model Bet {

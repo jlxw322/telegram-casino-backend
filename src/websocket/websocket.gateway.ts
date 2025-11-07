@@ -11,6 +11,7 @@ import { Server, Socket } from 'socket.io';
 import { Logger, UseGuards } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../shared/services/prisma.service';
+import { AviatorService } from './aviator.service';
 import { WsJwtGuard } from './guards/ws-jwt.guard';
 
 @WebSocketGateway({
@@ -37,6 +38,7 @@ export class WebsocketGateway
   constructor(
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
+    private readonly aviatorService: AviatorService,
   ) {}
 
   async handleConnection(client: Socket) {
@@ -168,6 +170,46 @@ export class WebsocketGateway
         timestamp: new Date().toISOString(),
       },
     };
+  }
+
+  @UseGuards(WsJwtGuard)
+  @SubscribeMessage('aviator:createOrGet')
+  async handleCreateOrGetAviator(@ConnectedSocket() client: Socket) {
+    try {
+      const game = await this.aviatorService.createOrGetAviator();
+      return {
+        event: 'aviator:game',
+        data: game,
+      };
+    } catch (error) {
+      this.logger.error('Error in aviator:createOrGet', error);
+      return {
+        event: 'error',
+        data: {
+          message: error.message || 'Failed to create or get aviator game',
+        },
+      };
+    }
+  }
+
+  @UseGuards(WsJwtGuard)
+  @SubscribeMessage('aviator:getCurrent')
+  async handleGetCurrentAviator(@ConnectedSocket() client: Socket) {
+    try {
+      const game = await this.aviatorService.getCurrentGame();
+      return {
+        event: 'aviator:game',
+        data: game,
+      };
+    } catch (error) {
+      this.logger.error('Error in aviator:getCurrent', error);
+      return {
+        event: 'error',
+        data: {
+          message: error.message || 'Failed to get current aviator game',
+        },
+      };
+    }
   }
 
   // Helper method to get active users count

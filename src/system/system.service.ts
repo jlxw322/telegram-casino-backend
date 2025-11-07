@@ -1,6 +1,7 @@
 import { Injectable, Logger, HttpException } from '@nestjs/common';
 import { PrismaService } from '../shared/services/prisma.service';
 import { BotService } from '../shared/services/bot.service';
+import { AviatorService } from '../websocket/aviator.service';
 import { UpdateBotTokenDto } from './dto/update-bot-token.dto';
 import { UpdateAviatorChancesDto } from './dto/update-aviator-chances.dto';
 import { SystemKey } from '@prisma/client';
@@ -12,6 +13,7 @@ export class SystemService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly botService: BotService,
+    private readonly aviatorService: AviatorService,
   ) {}
 
   /**
@@ -108,6 +110,9 @@ export class SystemService {
           value: JSON.stringify(dto.ranges),
         },
       });
+
+      // Reload aviator chances in aviator service
+      await this.aviatorService.reloadAviatorChances();
 
       return {
         key: updated.key,

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { WebsocketGateway } from './websocket.gateway';
 import { AdminWebsocketController } from './admin-websocket.controller';
+import { AviatorService } from './aviator.service';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 
@@ -15,7 +16,7 @@ import { ConfigService } from '@nestjs/config';
     }),
   ],
   controllers: [AdminWebsocketController],
-  providers: [WebsocketGateway],
-  exports: [WebsocketGateway],
+  providers: [WebsocketGateway, AviatorService],
+  exports: [WebsocketGateway, AviatorService],
 })
 export class WebsocketModule {}

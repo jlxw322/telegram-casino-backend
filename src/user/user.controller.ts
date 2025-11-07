@@ -17,11 +17,7 @@ export class UserController {
   constructor(private userService: UserService) {}
 
   @Post('telegram')
-  @ApiOperation({
-    summary: 'Authenticate with Telegram Web App',
-    description:
-      'Authenticate a user using Telegram Web App initData and receive a JWT token. The initData is validated to ensure it comes from Telegram and has not been tampered with.',
-  })
+  @ApiOperation({ summary: 'Authenticate with Telegram Web App' })
   @ApiBody({ type: TelegramAuthDto })
   @ApiResponse({
     status: 200,
@@ -35,14 +31,6 @@ export class UserController {
         },
       },
     },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad Request - Invalid initData or validation failed',
-  })
-  @ApiResponse({
-    status: 500,
-    description: 'Internal server error',
   })
   async telegram(@Body() data: TelegramAuthDto) {
     try {
@@ -65,11 +53,7 @@ export class UserController {
   }
 
   @Post('test')
-  @ApiOperation({
-    summary: 'Test endpoint - Generate token',
-    description:
-      'Development/testing endpoint to generate a JWT token for a hardcoded user ID. Should not be used in production.',
-  })
+  @ApiOperation({ summary: 'Test endpoint - Generate token for testing' })
   @ApiResponse({
     status: 201,
     description: 'Test token generated successfully',

@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  HttpException,
-} from '@nestjs/common';
+import { Injectable, Logger, HttpException } from '@nestjs/common';
 import { PrismaService } from '../../shared/services/prisma.service';
 import { CreateCaseDto } from './dto/create-case.dto';
 import { UpdateCaseDto } from './dto/update-case.dto';

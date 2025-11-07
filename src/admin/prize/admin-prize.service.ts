@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  HttpException,
-} from '@nestjs/common';
+import { Injectable, Logger, HttpException } from '@nestjs/common';
 import { PrismaService } from '../../shared/services/prisma.service';
 import { CreatePrizeDto } from './dto/create-prize.dto';
 import { UpdatePrizeDto } from './dto/update-prize.dto';

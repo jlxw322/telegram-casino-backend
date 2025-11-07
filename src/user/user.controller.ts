@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Logger, Post, Inject } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Logger,
+  Post,
+  Inject,
+  UseGuards,
+} from '@nestjs/common';
 import { UserService } from './user.service';
 import {
   ApiBody,
@@ -10,6 +18,7 @@ import {
 import { TelegramAuthDto } from './dto/telegram-auth.dto';
 import { User } from 'src/shared/decorator/user.decorator';
 import { WebsocketGateway } from 'src/websocket/websocket.gateway';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('user')
 @ApiTags('User')
@@ -47,6 +56,7 @@ export class UserController {
   }
 
   @Get('profile')
+  @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth('JWT')
   @ApiOperation({ summary: 'Get user profile' })
   @ApiResponse({
@@ -74,7 +84,7 @@ export class UserController {
   })
   async test() {
     return this.userService.generateToken(
-      'd581bb7e-56b1-4050-bcf2-b6afce518bad',
+      'c354c4c4-f424-469b-8a1b-6eb690112f2d',
     );
   }
 

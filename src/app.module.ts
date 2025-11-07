@@ -6,6 +6,7 @@ import { UserModule } from './user/user.module';
 import { AdminUserModule } from './admin/user/admin-user.module';
 import { AdminPrizeModule } from './admin/prize/admin-prize.module';
 import { AdminCaseModule } from './admin/case/admin-case.module';
+import { CaseModule } from './case/case.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { AdminCaseModule } from './admin/case/admin-case.module';
     AdminUserModule,
     AdminPrizeModule,
     AdminCaseModule,
+    CaseModule,
   ],
 })
 export class AppModule {}

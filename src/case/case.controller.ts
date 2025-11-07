@@ -24,7 +24,7 @@ export class CaseController {
 
   @Post(':id/open')
   @UseGuards(UserGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT')
   @ApiOperation({ summary: 'Open a case and receive random prizes' })
   @ApiResponse({
     status: 201,

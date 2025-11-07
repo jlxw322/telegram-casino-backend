@@ -24,7 +24,7 @@ import { AuthGuard } from '@nestjs/passport';
 
 @Controller('admin/user')
 @ApiTags('Admin - User')
-@ApiBearerAuth()
+@ApiBearerAuth('JWT')
 @UseGuards(AuthGuard('jwt'), AdminGuard)
 export class AdminUserController {
   private readonly logger = new Logger(AdminUserController.name);
@@ -32,10 +32,7 @@ export class AdminUserController {
   constructor(private adminUserService: AdminUserService) {}
 
   @Get()
-  @ApiOperation({
-    summary: 'Get all users with pagination',
-    description: 'Retrieve a paginated list of all users',
-  })
+  @ApiOperation({ summary: 'Get all users with pagination' })
   @ApiResponse({
     status: 200,
     description: 'Users retrieved successfully',
@@ -50,17 +47,10 @@ export class AdminUserController {
   }
 
   @Get(':id')
-  @ApiOperation({
-    summary: 'Get user by ID',
-    description: 'Retrieve a single user by their ID',
-  })
+  @ApiOperation({ summary: 'Get user by ID' })
   @ApiResponse({
     status: 200,
     description: 'User retrieved successfully',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'User not found',
   })
   async getUserById(@Param('id') id: string) {
     try {
@@ -72,17 +62,10 @@ export class AdminUserController {
   }
 
   @Patch(':id')
-  @ApiOperation({
-    summary: 'Update user',
-    description: 'Update an existing user',
-  })
+  @ApiOperation({ summary: 'Update user' })
   @ApiResponse({
     status: 200,
     description: 'User updated successfully',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'User not found',
   })
   async updateUser(
     @Param('id') id: string,
@@ -97,17 +80,10 @@ export class AdminUserController {
   }
 
   @Delete(':id')
-  @ApiOperation({
-    summary: 'Delete user',
-    description: 'Delete a user from the system',
-  })
+  @ApiOperation({ summary: 'Delete user' })
   @ApiResponse({
     status: 200,
     description: 'User deleted successfully',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'User not found',
   })
   async deleteUser(@Param('id') id: string) {
     try {
@@ -119,17 +95,10 @@ export class AdminUserController {
   }
 
   @Patch(':id/ban')
-  @ApiOperation({
-    summary: 'Ban user',
-    description: 'Ban a user from the system',
-  })
+  @ApiOperation({ summary: 'Ban user' })
   @ApiResponse({
     status: 200,
     description: 'User banned successfully',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'User not found',
   })
   async banUser(@Param('id') id: string) {
     try {
@@ -141,17 +110,10 @@ export class AdminUserController {
   }
 
   @Patch(':id/unban')
-  @ApiOperation({
-    summary: 'Unban user',
-    description: 'Unban a previously banned user',
-  })
+  @ApiOperation({ summary: 'Unban user' })
   @ApiResponse({
     status: 200,
     description: 'User unbanned successfully',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'User not found',
   })
   async unbanUser(@Param('id') id: string) {
     try {
@@ -163,17 +125,10 @@ export class AdminUserController {
   }
 
   @Patch(':id/balance')
-  @ApiOperation({
-    summary: 'Update user balance',
-    description: 'Update the balance of a user',
-  })
+  @ApiOperation({ summary: 'Update user balance' })
   @ApiResponse({
     status: 200,
     description: 'User balance updated successfully',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'User not found',
   })
   async updateBalance(
     @Param('id') id: string,

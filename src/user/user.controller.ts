@@ -1,6 +1,12 @@
 import { Body, Controller, Get, Logger, Post } from '@nestjs/common';
 import { UserService } from './user.service';
-import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { TelegramAuthDto } from './dto/telegram-auth.dto';
 import { User } from 'src/shared/decorator/user.decorator';
 
@@ -48,6 +54,12 @@ export class UserController {
   }
 
   @Get('profile')
+  @ApiBearerAuth('JWT')
+  @ApiOperation({ summary: 'Get user profile' })
+  @ApiResponse({
+    status: 200,
+    description: 'User profile retrieved successfully',
+  })
   async getProfile(@User('id') userId: string) {
     return this.userService.getProfile(userId);
   }

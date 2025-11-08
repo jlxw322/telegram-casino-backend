@@ -9,6 +9,7 @@ import { AdminCaseModule } from './admin/case/admin-case.module';
 import { CaseModule } from './case/case.module';
 import { WebsocketModule } from './websocket/websocket.module';
 import { SystemModule } from './system/system.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { SystemModule } from './system/system.module';
     }),
     ScheduleModule.forRoot(),
     SharedModule,
+    AuthModule,
     UserModule,
     AdminUserModule,
     AdminPrizeModule,

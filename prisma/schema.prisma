@@ -30,6 +30,17 @@ enum SystemKey {
   AVIATOR_CHANCES
 }
 
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum Currency {
+  XTR
+  TON
+}
+
 model User {
   id           String          @id @default(uuid())
   telegramId   String          @unique
@@ -41,6 +52,7 @@ model User {
 
   inventory    InventoryItem[] @relation("UserInventory")
   bets         Bet[]
+  payments     Payment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -128,6 +140,20 @@ model Bet {
 
   aviator Aviator @relation(fields: [aviatorId], references: [id])
   user    User    @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Payment {
+  id         String      @id @default(uuid())
+  userId     String
+  amount     Decimal
+  currency   Currency
+  status     PaymentStatus @default(PENDING)
+  invoiceId  String?   @unique
+
+  user User @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

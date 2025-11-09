@@ -27,7 +27,7 @@ enum LanguageCode {
 enum SystemKey {
   TELEGRAM_BOT_TOKEN
   WEBAPP_URL
-  AVIATOR_CHANCES
+  AVIATOR
 }
 
 enum PaymentStatus {

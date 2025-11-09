@@ -4,81 +4,96 @@ import {
   OnModuleInit,
   HttpException,
 } from '@nestjs/common';
-import { PrismaService } from '../shared/services/prisma.service';
+import { PrismaService } from '../../shared/services/prisma.service';
 import { SystemKey, AviatorStatus } from '@prisma/client';
-import { AviatorRangeDto } from '../system/dto/aviator-range.dto';
+
+export interface AviatorSettings {
+  minMultiplier: number;
+  maxMultiplier: number;
+  minBet: number;
+  maxBet: number;
+}
 
 @Injectable()
 export class AviatorService implements OnModuleInit {
   private readonly logger = new Logger(AviatorService.name);
-  private aviatorChances: AviatorRangeDto[] = [];
+  private aviatorSettings: AviatorSettings = {
+    minMultiplier: 1.0,
+    maxMultiplier: 100,
+    minBet: 25,
+    maxBet: 10000,
+  };
 
   constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit() {
-    await this.loadAviatorChances();
+    await this.loadAviatorSettings();
   }
 
   /**
-   * Load and cache AVIATOR_CHANCES from system variables
+   * Load and cache AVIATOR settings from system variables
    */
-  private async loadAviatorChances() {
+  private async loadAviatorSettings() {
     try {
       await this.prisma.ensureConnected();
 
       const systemVar = await this.prisma.system.findUnique({
-        where: { key: SystemKey.AVIATOR_CHANCES },
+        where: { key: SystemKey.AVIATOR },
       });
 
       if (!systemVar) {
         this.logger.warn(
-          'AVIATOR_CHANCES not found in system variables, using defaults',
+          'AVIATOR settings not found in system variables, using defaults',
         );
-        // Set default chances if not found
-        this.aviatorChances = [
-          { from: 1, to: 2, chance: 70 },
-          { from: 2, to: 5, chance: 20 },
-          { from: 5, to: 10, chance: 8 },
-          { from: 10, to: 20, chance: 2 },
-        ];
       } else {
-        this.aviatorChances = JSON.parse(systemVar.value);
+        this.aviatorSettings = JSON.parse(systemVar.value);
       }
 
-      this.logger.log('Aviator chances loaded successfully');
+      this.logger.log('Aviator settings loaded successfully');
     } catch (error) {
       this.logger.error(
-        'Failed to load aviator chances, using defaults',
+        'Failed to load aviator settings, using defaults',
         error,
       );
-      throw new HttpException('Failed to load aviator chances', 500);
+      throw new HttpException('Failed to load aviator settings', 500);
     }
   }
 
   /**
-   * Reload aviator chances from database (call after admin updates)
+   * Reload aviator settings from database (call after admin updates)
    */
-  async reloadAviatorChances() {
-    await this.loadAviatorChances();
+  async reloadAviatorSettings() {
+    await this.loadAviatorSettings();
   }
 
   /**
-   * Generate random multiplier based on chances configuration
+   * Get current aviator settings
+   */
+  getAviatorSettings(): AviatorSettings {
+    return this.aviatorSettings;
+  }
+
+  /**
+   * Generate random multiplier between min and max
+   * Uses exponential distribution to make lower multipliers more common
    */
   private generateMultiplier(): number {
-    const totalChance = this.aviatorChances.reduce((a, b) => a + b.chance, 0);
-    const random = Math.random() * totalChance;
-    let cumulativeChance = 0;
+    const { minMultiplier, maxMultiplier } = this.aviatorSettings;
 
-    for (const range of this.aviatorChances) {
-      cumulativeChance += range.chance;
-      if (random <= cumulativeChance) {
-        const multiplier = range.from + Math.random() * (range.to - range.from);
-        return Math.round(multiplier * 100) / 100;
-      }
-    }
+    // Use exponential distribution for more realistic crash behavior
+    // Lower multipliers are much more common than higher ones
+    const lambda = 0.5; // Controls the distribution shape
+    const random = Math.random();
+    const exponential = -Math.log(1 - random) / lambda;
 
-    return this.aviatorChances[0]?.from || 1;
+    // Map exponential value to our range
+    const range = maxMultiplier - minMultiplier;
+    let multiplier = minMultiplier + Math.min(exponential * range * 0.1, range);
+
+    // Round to 2 decimal places
+    multiplier = Math.round(multiplier * 100) / 100;
+
+    return multiplier;
   }
 
   /**
@@ -228,12 +243,14 @@ export class AviatorService implements OnModuleInit {
    */
   async placeBet(userId: string, aviatorId: number, amount: number) {
     try {
+      const { minBet, maxBet } = this.aviatorSettings;
+
       // Validate bet amount
-      if (amount < 25) {
-        throw new HttpException('Minimum bet amount is 25', 400);
+      if (amount < minBet) {
+        throw new HttpException(`Minimum bet amount is ${minBet}`, 400);
       }
-      if (amount > 10000) {
-        throw new HttpException('Maximum bet amount is 10000', 400);
+      if (amount > maxBet) {
+        throw new HttpException(`Maximum bet amount is ${maxBet}`, 400);
       }
 
       // Get the specific aviator game

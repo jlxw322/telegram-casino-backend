@@ -6,6 +6,7 @@ import { UserModule } from './user/user.module';
 import { AdminUserModule } from './admin/user/admin-user.module';
 import { AdminPrizeModule } from './admin/prize/admin-prize.module';
 import { AdminCaseModule } from './admin/case/admin-case.module';
+import { AdminAviatorModule } from './admin/aviator/admin-aviator.module';
 import { CaseModule } from './case/case.module';
 import { WebsocketModule } from './websocket/websocket.module';
 import { SystemModule } from './system/system.module';
@@ -33,6 +34,7 @@ import { ServeStaticModule } from '@nestjs/serve-static';
     AdminUserModule,
     AdminPrizeModule,
     AdminCaseModule,
+    AdminAviatorModule,
     CaseModule,
     WebsocketModule,
     SystemModule,

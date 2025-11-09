@@ -15,7 +15,6 @@ import {
 } from '@nestjs/swagger';
 import { SystemService } from './system.service';
 import { UpdateBotTokenDto } from './dto/update-bot-token.dto';
-import { UpdateAviatorChancesDto } from './dto/update-aviator-chances.dto';
 import { UpdateWebAppUrlDto } from './dto/update-webapp-url.dto';
 import { AdminGuard } from '../shared/guards/admin.guard';
 import { AuthGuard } from '@nestjs/passport';
@@ -48,16 +47,6 @@ export class SystemController {
   @ApiResponse({ status: 200, description: 'Bot token updated successfully' })
   async updateBotToken(@Body() dto: UpdateBotTokenDto) {
     return this.systemService.updateBotToken(dto);
-  }
-
-  @Put('aviator-chances')
-  @ApiOperation({ summary: 'Update aviator multiplier chances configuration' })
-  @ApiResponse({
-    status: 200,
-    description: 'Aviator chances updated successfully',
-  })
-  async updateAviatorChances(@Body() dto: UpdateAviatorChancesDto) {
-    return this.systemService.updateAviatorChances(dto);
   }
 
   @Put('webapp-url')

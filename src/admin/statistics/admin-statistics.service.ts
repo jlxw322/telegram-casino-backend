@@ -15,6 +15,7 @@ import {
   LeaderboardResponseDto,
   LeaderboardEntryDto,
 } from './dto/leaderboard-response.dto';
+import { TransactionsQueryDto } from './dto/transactions-query.dto';
 
 @Injectable()
 export class AdminStatisticsService {
@@ -280,24 +281,21 @@ export class AdminStatisticsService {
   }
 
   async getTransactions(
-    pagination: PaginationDto,
-    filter: StatisticsFilterDto,
+    query: TransactionsQueryDto,
   ): Promise<{ data: TransactionDto[]; meta: any }> {
     try {
-      const { page = 1, limit = 20 } = pagination;
+      const { page = 1, limit = 20, startDate, endDate } = query;
       const skip = (page - 1) * limit;
 
-      const startDate = filter.startDate
-        ? new Date(filter.startDate)
-        : undefined;
-      const endDate = filter.endDate ? new Date(filter.endDate) : undefined;
+      const startDateParsed = startDate ? new Date(startDate) : undefined;
+      const endDateParsed = endDate ? new Date(endDate) : undefined;
 
       const dateFilter =
-        startDate && endDate
+        startDateParsed && endDateParsed
           ? {
               createdAt: {
-                gte: startDate,
-                lte: endDate,
+                gte: startDateParsed,
+                lte: endDateParsed,
               },
             }
           : {};
@@ -473,9 +471,7 @@ export class AdminStatisticsService {
         },
       });
 
-      const bettorUserMap = new Map(
-        bettorUsers.map((u) => [u.id, u.username]),
-      );
+      const bettorUserMap = new Map(bettorUsers.map((u) => [u.id, u.username]));
 
       const topBettors: LeaderboardEntryDto[] = betsByUser.map((bet, index) => {
         return {
@@ -551,9 +547,7 @@ export class AdminStatisticsService {
         },
       });
 
-      const winnerUserMap = new Map(
-        winnerUsers.map((u) => [u.id, u.username]),
-      );
+      const winnerUserMap = new Map(winnerUsers.map((u) => [u.id, u.username]));
 
       const topWinners: LeaderboardEntryDto[] = sortedWinners.map(
         ([userId, amount], index) => {

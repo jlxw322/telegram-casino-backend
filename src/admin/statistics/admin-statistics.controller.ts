@@ -11,8 +11,8 @@ import { AuthGuard } from '@nestjs/passport';
 import { StatisticsFilterDto } from './dto/statistics-filter.dto';
 import { AnalyticsResponseDto } from './dto/analytics-response.dto';
 import { TransactionsResponseDto } from './dto/transaction-response.dto';
-import { PaginationDto } from 'src/shared/dto/pagination.dto';
 import { LeaderboardResponseDto } from './dto/leaderboard-response.dto';
+import { TransactionsQueryDto } from './dto/transactions-query.dto';
 
 @Controller('admin/statistics')
 @ApiTags('Admin - Statistics')
@@ -46,15 +46,9 @@ export class AdminStatisticsController {
     description: 'Transactions retrieved successfully',
     type: TransactionsResponseDto,
   })
-  async getTransactions(
-    @Query() pagination: PaginationDto,
-    @Query() filter: StatisticsFilterDto,
-  ) {
+  async getTransactions(@Query() query: TransactionsQueryDto) {
     try {
-      return await this.adminStatisticsService.getTransactions(
-        pagination,
-        filter,
-      );
+      return await this.adminStatisticsService.getTransactions(query);
     } catch (error) {
       this.logger.error('Failed to get transactions: ', error);
       throw error;

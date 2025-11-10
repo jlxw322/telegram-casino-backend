@@ -12,12 +12,16 @@ The upgrade system allows users to upgrade their inventory items to higher-value
 ## Database Schema
 
 ### UpgradeChance
+
 Stores the success chance for each multiplier:
+
 - `multiplier`: Enum (X1_5, X2, X3, X5, X10)
 - `chance`: Decimal (0.0 - 1.0)
 
 ### Upgrade
+
 Records all upgrade attempts:
+
 - `userId`: User who attempted the upgrade
 - `fromPrizeId`: Source prize
 - `toPrizeId`: Target prize (null if failed)
@@ -28,12 +32,15 @@ Records all upgrade attempts:
 ## User Endpoints
 
 ### GET `/upgrade/options`
+
 Get available upgrade options for an inventory item.
 
 **Query Parameters:**
+
 - `inventoryItemId`: ID of the inventory item to upgrade
 
 **Response:**
+
 ```json
 {
   "sourcePrize": {
@@ -58,9 +65,11 @@ Get available upgrade options for an inventory item.
 ```
 
 ### POST `/upgrade/execute`
+
 Execute an upgrade attempt.
 
 **Body:**
+
 ```json
 {
   "inventoryItemId": 1,
@@ -69,6 +78,7 @@ Execute an upgrade attempt.
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -93,9 +103,11 @@ Execute an upgrade attempt.
 ## Admin Endpoints
 
 ### GET `/admin/upgrade/chances`
+
 Get all configured upgrade chances.
 
 **Response:**
+
 ```json
 [
   {
@@ -109,9 +121,11 @@ Get all configured upgrade chances.
 ```
 
 ### PUT `/admin/upgrade/chance`
+
 Update or create upgrade chance for a multiplier.
 
 **Body:**
+
 ```json
 {
   "multiplier": "X2",
@@ -120,7 +134,9 @@ Update or create upgrade chance for a multiplier.
 ```
 
 ### PUT `/admin/upgrade/initialize`
+
 Initialize default upgrade chances:
+
 - X1.5: 70% success
 - X2: 50% success
 - X3: 33% success
@@ -141,11 +157,13 @@ Initialize default upgrade chances:
 ## Setup Instructions
 
 1. **Run migration** (after resolving database drift):
+
    ```bash
    yarn prisma migrate dev
    ```
 
 2. **Initialize default chances** (recommended for first-time setup):
+
    ```bash
    curl -X PUT http://localhost:3000/admin/upgrade/initialize \
      -H "Authorization: Bearer YOUR_ADMIN_TOKEN"

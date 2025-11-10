@@ -16,6 +16,7 @@ async function bootstrap() {
       'https://miniapp.arcticpay.app',
       'https://admin-panel.arcticpay.app',
       'http://localhost:3000',
+      'https://casino-admin-panel-production.up.railway.app',
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: [

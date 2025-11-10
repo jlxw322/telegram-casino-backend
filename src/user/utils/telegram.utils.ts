@@ -33,12 +33,24 @@ export function validateTelegramWebAppData(
     throw new HttpException('initData is required', 400);
   }
 
+  // Decode the initData if it's URL-encoded (handle double encoding from frontend)
+  let decodedInitData = initData;
+  try {
+    // Check if the string is URL-encoded by looking for % characters
+    if (initData.includes('%')) {
+      decodedInitData = decodeURIComponent(initData);
+    }
+  } catch (error) {
+    // If decoding fails, use the original string
+    decodedInitData = initData;
+  }
+
   // Parse parameters manually to handle all encoding scenarios
   const params: Map<string, string> = new Map();
   let hash = '';
 
   // Split by & to get key-value pairs
-  const pairs = initData.split('&');
+  const pairs = decodedInitData.split('&');
 
   for (const pair of pairs) {
     const equalIndex = pair.indexOf('=');

@@ -1,14 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, IsPositive } from 'class-validator';
+import { IsInt, IsPositive } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class DeleteUpgradeChanceDto {
   @ApiProperty({
-    description: 'Multiplier value to delete',
-    example: 2,
+    description: 'ID of upgrade chance to delete',
+    example: 1,
   })
   @Type(() => Number)
-  @IsNumber()
+  @IsInt()
   @IsPositive()
-  multiplier: number;
+  id: number;
 }

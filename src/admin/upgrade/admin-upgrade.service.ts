@@ -172,7 +172,7 @@ export class AdminUpgradeService {
   }
 
   /**
-   * Delete upgrade chance multiplier
+   * Delete upgrade chance by ID
    */
   async deleteUpgradeChance(
     dto: DeleteUpgradeChanceDto,
@@ -180,23 +180,25 @@ export class AdminUpgradeService {
     try {
       await this.prisma.ensureConnected();
 
-      // Check if multiplier exists
+      // Check if record exists
       const existing = await this.prisma.upgradeChance.findUnique({
-        where: { multiplier: dto.multiplier },
+        where: { id: dto.id },
       });
 
       if (!existing) {
-        throw new HttpException('Multiplier not found', 404);
+        throw new HttpException('Upgrade chance not found', 404);
       }
 
       await this.prisma.upgradeChance.delete({
-        where: { multiplier: dto.multiplier },
+        where: { id: dto.id },
       });
 
-      this.logger.log(`Deleted upgrade chance: X${dto.multiplier}`);
+      this.logger.log(
+        `Deleted upgrade chance: ID ${dto.id} (X${existing.multiplier})`,
+      );
 
       return {
-        message: `Multiplier X${dto.multiplier} deleted successfully`,
+        message: `Upgrade chance deleted successfully`,
       };
     } catch (error) {
       if (error instanceof HttpException) {

@@ -98,14 +98,14 @@ export class AdminUpgradeController {
   }
 
   @Delete('chance')
-  @ApiOperation({ summary: 'Delete upgrade chance multiplier' })
+  @ApiOperation({ summary: 'Delete upgrade chance by ID' })
   @ApiResponse({
     status: 200,
-    description: 'Multiplier deleted successfully',
+    description: 'Upgrade chance deleted successfully',
   })
   @ApiResponse({
     status: 404,
-    description: 'Multiplier not found',
+    description: 'Upgrade chance not found',
   })
   async deleteUpgradeChance(
     @Body() dto: DeleteUpgradeChanceDto,

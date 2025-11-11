@@ -2,6 +2,8 @@ import { Injectable, Logger, HttpException } from '@nestjs/common';
 import { PrismaService } from '../../shared/services/prisma.service';
 import { CreateUpgradeChanceDto } from './dto/create-upgrade-chance.dto';
 import { UpdateUpgradeChanceDto } from './dto/update-upgrade-chance.dto';
+import { DeleteUpgradeChanceDto } from './dto/delete-upgrade-chance.dto';
+import { EditMultiplierDto } from './dto/edit-multiplier.dto';
 import { UpgradeChanceResponseDto } from './dto/upgrade-chance-response.dto';
 
 @Injectable()
@@ -166,6 +168,103 @@ export class AdminUpgradeService {
         'Failed to initialize default upgrade chances',
         500,
       );
+    }
+  }
+
+  /**
+   * Delete upgrade chance multiplier
+   */
+  async deleteUpgradeChance(
+    dto: DeleteUpgradeChanceDto,
+  ): Promise<{ message: string }> {
+    try {
+      await this.prisma.ensureConnected();
+
+      // Check if multiplier exists
+      const existing = await this.prisma.upgradeChance.findUnique({
+        where: { multiplier: dto.multiplier },
+      });
+
+      if (!existing) {
+        throw new HttpException('Multiplier not found', 404);
+      }
+
+      await this.prisma.upgradeChance.delete({
+        where: { multiplier: dto.multiplier },
+      });
+
+      this.logger.log(`Deleted upgrade chance: X${dto.multiplier}`);
+
+      return {
+        message: `Multiplier X${dto.multiplier} deleted successfully`,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error('Failed to delete upgrade chance', error);
+      throw new HttpException('Failed to delete upgrade chance', 500);
+    }
+  }
+
+  /**
+   * Edit multiplier value (change the multiplier itself)
+   */
+  async editMultiplier(
+    dto: EditMultiplierDto,
+  ): Promise<UpgradeChanceResponseDto> {
+    try {
+      await this.prisma.ensureConnected();
+
+      // Check if old multiplier exists
+      const existing = await this.prisma.upgradeChance.findUnique({
+        where: { multiplier: dto.oldMultiplier },
+      });
+
+      if (!existing) {
+        throw new HttpException('Old multiplier not found', 404);
+      }
+
+      // Check if new multiplier already exists
+      if (dto.oldMultiplier !== dto.newMultiplier) {
+        const newExists = await this.prisma.upgradeChance.findUnique({
+          where: { multiplier: dto.newMultiplier },
+        });
+
+        if (newExists) {
+          throw new HttpException('New multiplier already exists', 400);
+        }
+      }
+
+      // Delete old and create new (since multiplier is unique constraint)
+      await this.prisma.upgradeChance.delete({
+        where: { multiplier: dto.oldMultiplier },
+      });
+
+      const upgradeChance = await this.prisma.upgradeChance.create({
+        data: {
+          multiplier: dto.newMultiplier,
+          chance: dto.chance ?? existing.chance,
+        },
+      });
+
+      this.logger.log(
+        `Edited multiplier: X${dto.oldMultiplier} → X${dto.newMultiplier}`,
+      );
+
+      return {
+        id: upgradeChance.id,
+        multiplier: Number(upgradeChance.multiplier),
+        chance: Number(upgradeChance.chance),
+        createdAt: upgradeChance.createdAt,
+        updatedAt: upgradeChance.updatedAt,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error('Failed to edit multiplier', error);
+      throw new HttpException('Failed to edit multiplier', 500);
     }
   }
 }

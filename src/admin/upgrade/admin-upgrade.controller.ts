@@ -1,4 +1,12 @@
-import { Controller, Get, Put, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -7,7 +15,9 @@ import {
 } from '@nestjs/swagger';
 import { AdminUpgradeService } from './admin-upgrade.service';
 import { AdminGuard } from '../../shared/guards/admin.guard';
+import { CreateUpgradeChanceDto } from './dto/create-upgrade-chance.dto';
 import { UpdateUpgradeChanceDto } from './dto/update-upgrade-chance.dto';
+import { DeleteUpgradeChanceDto } from './dto/delete-upgrade-chance.dto';
 import { UpgradeChanceResponseDto } from './dto/upgrade-chance-response.dto';
 
 @ApiTags('Admin - Upgrade')
@@ -28,6 +38,23 @@ export class AdminUpgradeController {
     return this.adminUpgradeService.getAllUpgradeChances();
   }
 
+  @Post('chance')
+  @ApiOperation({ summary: 'Create new upgrade chance multiplier' })
+  @ApiResponse({
+    status: 201,
+    description: 'Upgrade chance created successfully',
+    type: UpgradeChanceResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Multiplier already exists',
+  })
+  async createUpgradeChance(
+    @Body() dto: CreateUpgradeChanceDto,
+  ): Promise<UpgradeChanceResponseDto> {
+    return this.adminUpgradeService.createUpgradeChance(dto);
+  }
+
   @Put('chance')
   @ApiOperation({ summary: 'Update upgrade chance for a multiplier' })
   @ApiResponse({
@@ -35,10 +62,30 @@ export class AdminUpgradeController {
     description: 'Upgrade chance updated successfully',
     type: UpgradeChanceResponseDto,
   })
+  @ApiResponse({
+    status: 404,
+    description: 'Multiplier not found',
+  })
   async updateUpgradeChance(
     @Body() dto: UpdateUpgradeChanceDto,
   ): Promise<UpgradeChanceResponseDto> {
     return this.adminUpgradeService.updateUpgradeChance(dto);
+  }
+
+  @Delete('chance')
+  @ApiOperation({ summary: 'Delete upgrade chance multiplier' })
+  @ApiResponse({
+    status: 200,
+    description: 'Upgrade chance deleted successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Multiplier not found',
+  })
+  async deleteUpgradeChance(
+    @Body() dto: DeleteUpgradeChanceDto,
+  ): Promise<{ message: string }> {
+    return this.adminUpgradeService.deleteUpgradeChance(dto);
   }
 
   @Put('initialize')

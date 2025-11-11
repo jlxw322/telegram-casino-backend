@@ -195,6 +195,35 @@ async function main() {
   console.log(`Server Seed: ${serverSeed}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
+  console.log('\nSeeding upgrade chances...');
+
+  // Seed upgrade chances with realistic probabilities
+  // Multipliers are now flexible and can be extended easily
+  const upgradeChances = [
+    { multiplier: 1.5, chance: 0.75 }, // 75% chance for 1.5x
+    { multiplier: 2, chance: 0.5 }, // 50% chance for 2x
+    { multiplier: 3, chance: 0.33 }, // 33% chance for 3x
+    { multiplier: 5, chance: 0.2 }, // 20% chance for 5x
+    { multiplier: 10, chance: 0.1 }, // 10% chance for 10x
+  ];
+
+  for (const upgradeData of upgradeChances) {
+    await prisma.upgradeChance.upsert({
+      where: { multiplier: upgradeData.multiplier },
+      update: { chance: upgradeData.chance },
+      create: upgradeData,
+    });
+  }
+
+  console.log('✓ Upgrade chances configured');
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('⬆️  UPGRADE CHANCES (FLEXIBLE MULTIPLIERS)');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  upgradeChances.forEach((u) =>
+    console.log(`X${u.multiplier}: ${u.chance * 100}% chance`),
+  );
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
   console.log('\nSeeding prizes...');
 
   // Create prizes for cases

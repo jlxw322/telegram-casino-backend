@@ -2,9 +2,9 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsNumber, IsPositive, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export class UpdateUpgradeChanceDto {
+export class CreateUpgradeChanceDto {
   @ApiProperty({
-    description: 'Multiplier to update',
+    description: 'Multiplier value (e.g., 1.5, 2, 3, 5, 10)',
     example: 2,
   })
   @Type(() => Number)

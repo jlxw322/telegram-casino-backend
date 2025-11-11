@@ -121,31 +121,23 @@ model Payout {
   updatedAt DateTime @updatedAt
 }
 
-enum UpgradeMultiplier {
-  X1_5
-  X2
-  X3
-  X5
-  X10
-}
-
 model UpgradeChance {
-  id         Int                @id @default(autoincrement())
-  multiplier UpgradeMultiplier  @unique
-  chance     Decimal            // Success chance as decimal (0.0 - 1.0)
+  id         Int     @id @default(autoincrement())
+  multiplier Decimal @unique // Flexible multiplier (e.g., 1.5, 2.0, 3.0, 5.0, 10.0)
+  chance     Decimal // Success chance as decimal (0.0 - 1.0)
 
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
 
 model Upgrade {
-  id           Int                @id @default(autoincrement())
+  id           Int     @id @default(autoincrement())
   userId       String
   fromPrizeId  Int
-  toPrizeId    Int?               // Nullable because it's null if upgrade failed
-  multiplier   UpgradeMultiplier
-  chance       Decimal            // Chance at the time of upgrade
-  success      Boolean            // Whether the upgrade succeeded
+  toPrizeId    Int?    // Nullable because it's null if upgrade failed
+  multiplier   Decimal // Multiplier used at time of upgrade
+  chance       Decimal // Chance at the time of upgrade
+  success      Boolean // Whether the upgrade succeeded
 
   user      User   @relation(fields: [userId], references: [id])
   fromPrize Prize  @relation("UpgradeFromPrize", fields: [fromPrizeId], references: [id])

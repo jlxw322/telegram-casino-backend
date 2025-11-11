@@ -1,31 +1,21 @@
 import { Injectable, Logger, HttpException } from '@nestjs/common';
 import { PrismaService } from '../shared/services/prisma.service';
-import { UpgradeMultiplier } from './dto/execute-upgrade.dto';
 import {
   UpgradeOptionsResponseDto,
   UpgradeOptionDto,
 } from './dto/upgrade-options-response.dto';
 import { UpgradeResultDto } from './dto/upgrade-result.dto';
+import {
+  UpgradeHistoryResponseDto,
+  UpgradeHistoryItemDto,
+} from './dto/upgrade-history-response.dto';
+import { UpgradeStatsResponseDto } from './dto/upgrade-stats-response.dto';
 
 @Injectable()
 export class UpgradeService {
   private readonly logger = new Logger(UpgradeService.name);
 
   constructor(private readonly prisma: PrismaService) {}
-
-  /**
-   * Convert multiplier enum to numeric value
-   */
-  private getMultiplierValue(multiplier: UpgradeMultiplier): number {
-    const multiplierMap = {
-      [UpgradeMultiplier.X1_5]: 1.5,
-      [UpgradeMultiplier.X2]: 2,
-      [UpgradeMultiplier.X3]: 3,
-      [UpgradeMultiplier.X5]: 5,
-      [UpgradeMultiplier.X10]: 10,
-    };
-    return multiplierMap[multiplier];
-  }
 
   /**
    * Get upgrade options for a specific inventory item
@@ -75,9 +65,7 @@ export class UpgradeService {
       const options: UpgradeOptionDto[] = [];
 
       for (const upgradeChance of upgradeChances) {
-        const multiplierValue = this.getMultiplierValue(
-          upgradeChance.multiplier as UpgradeMultiplier,
-        );
+        const multiplierValue = Number(upgradeChance.multiplier);
         const targetAmount = Math.floor(sourcePrize.amount * multiplierValue);
 
         // Find the closest prize with amount >= targetAmount
@@ -94,7 +82,7 @@ export class UpgradeService {
 
         if (targetPrize) {
           options.push({
-            multiplier: upgradeChance.multiplier as UpgradeMultiplier,
+            multiplier: multiplierValue,
             chance: Number(upgradeChance.chance),
             targetPrize: {
               id: targetPrize.id,
@@ -142,7 +130,7 @@ export class UpgradeService {
    */
   async executeUpgrade(
     inventoryItemId: number,
-    multiplier: UpgradeMultiplier,
+    multiplier: number,
     userId: string,
   ): Promise<UpgradeResultDto> {
     try {
@@ -179,7 +167,7 @@ export class UpgradeService {
         const chance = Number(upgradeChance.chance);
 
         // 3. Calculate target prize
-        const multiplierValue = this.getMultiplierValue(multiplier);
+        const multiplierValue = Number(upgradeChance.multiplier);
         const targetAmount = Math.floor(sourcePrize.amount * multiplierValue);
 
         const targetPrize = await tx.prize.findFirst({
@@ -268,6 +256,165 @@ export class UpgradeService {
       }
       this.logger.error('Failed to execute upgrade', error);
       throw new HttpException('Failed to execute upgrade', 500);
+    }
+  }
+
+  /**
+   * Get user's upgrade history with pagination
+   */
+  async getUpgradeHistory(
+    userId: string,
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<UpgradeHistoryResponseDto> {
+    try {
+      await this.prisma.ensureConnected();
+
+      const skip = (page - 1) * limit;
+
+      const [upgrades, total] = await Promise.all([
+        this.prisma.upgrade.findMany({
+          where: { userId },
+          include: {
+            fromPrize: true,
+            toPrize: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          skip,
+          take: limit,
+        }),
+        this.prisma.upgrade.count({
+          where: { userId },
+        }),
+      ]);
+
+      const upgradeItems: UpgradeHistoryItemDto[] = upgrades.map((upgrade) => ({
+        id: upgrade.id,
+        success: upgrade.success,
+        multiplier: Number(upgrade.multiplier),
+        chance: Number(upgrade.chance),
+        fromPrize: {
+          id: upgrade.fromPrize.id,
+          name: upgrade.fromPrize.name,
+          amount: upgrade.fromPrize.amount,
+          url: upgrade.fromPrize.url,
+        },
+        toPrize: upgrade.toPrize
+          ? {
+              id: upgrade.toPrize.id,
+              name: upgrade.toPrize.name,
+              amount: upgrade.toPrize.amount,
+              url: upgrade.toPrize.url,
+            }
+          : undefined,
+        createdAt: upgrade.createdAt,
+      }));
+
+      return {
+        upgrades: upgradeItems,
+        total,
+        page,
+        limit,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error('Failed to get upgrade history', error);
+      throw new HttpException('Failed to get upgrade history', 500);
+    }
+  }
+
+  /**
+   * Get comprehensive upgrade statistics for a user
+   */
+  async getUpgradeStats(userId: string): Promise<UpgradeStatsResponseDto> {
+    try {
+      await this.prisma.ensureConnected();
+
+      const allUpgrades = await this.prisma.upgrade.findMany({
+        where: { userId },
+        include: {
+          fromPrize: true,
+          toPrize: true,
+        },
+      });
+
+      const totalAttempts = allUpgrades.length;
+      const successfulUpgrades = allUpgrades.filter((u) => u.success).length;
+      const failedUpgrades = totalAttempts - successfulUpgrades;
+      const successRate =
+        totalAttempts > 0
+          ? Math.round((successfulUpgrades / totalAttempts) * 100 * 100) / 100
+          : 0;
+
+      // Calculate value lost and gained
+      let totalValueLost = 0;
+      let totalValueGained = 0;
+
+      for (const upgrade of allUpgrades) {
+        const fromValue = upgrade.fromPrize.amount;
+        if (upgrade.success && upgrade.toPrize) {
+          const toValue = upgrade.toPrize.amount;
+          totalValueGained += toValue - fromValue;
+        } else {
+          totalValueLost += fromValue;
+        }
+      }
+
+      const netProfit = totalValueGained - totalValueLost;
+
+      // Statistics by multiplier
+      const byMultiplier: Record<
+        string,
+        {
+          attempts: number;
+          successes: number;
+          successRate: number;
+        }
+      > = {};
+
+      // Get all unique multipliers from upgrades
+      const uniqueMultipliers = [
+        ...new Set(allUpgrades.map((u) => Number(u.multiplier))),
+      ].sort((a, b) => a - b);
+
+      for (const mult of uniqueMultipliers) {
+        const upgradesForMult = allUpgrades.filter(
+          (u) => Number(u.multiplier) === mult,
+        );
+        const attempts = upgradesForMult.length;
+        const successes = upgradesForMult.filter((u) => u.success).length;
+        const rate =
+          attempts > 0
+            ? Math.round((successes / attempts) * 100 * 100) / 100
+            : 0;
+
+        byMultiplier[`X${mult}`] = {
+          attempts,
+          successes,
+          successRate: rate,
+        };
+      }
+
+      return {
+        totalAttempts,
+        successfulUpgrades,
+        failedUpgrades,
+        successRate,
+        totalValueLost,
+        totalValueGained,
+        netProfit,
+        byMultiplier,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error('Failed to get upgrade stats', error);
+      throw new HttpException('Failed to get upgrade stats', 500);
     }
   }
 }

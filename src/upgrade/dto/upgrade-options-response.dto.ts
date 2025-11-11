@@ -1,5 +1,4 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { UpgradeMultiplier } from './execute-upgrade.dto';
 
 export class UpgradeOptionDto {
   @ApiProperty({
@@ -20,10 +19,9 @@ export class UpgradeOptionDto {
 
   @ApiProperty({
     description: 'Multiplier for this upgrade path',
-    example: 'X2',
-    enum: UpgradeMultiplier,
+    example: 2,
   })
-  multiplier: UpgradeMultiplier;
+  multiplier: number;
 
   @ApiProperty({
     description: 'Success chance as decimal (0.0 - 1.0)',

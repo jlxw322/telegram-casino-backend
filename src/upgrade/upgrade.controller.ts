@@ -12,6 +12,9 @@ import { GetUpgradeOptionsDto } from './dto/get-upgrade-options.dto';
 import { ExecuteUpgradeDto } from './dto/execute-upgrade.dto';
 import { UpgradeOptionsResponseDto } from './dto/upgrade-options-response.dto';
 import { UpgradeResultDto } from './dto/upgrade-result.dto';
+import { GetUpgradeHistoryDto } from './dto/get-upgrade-history.dto';
+import { UpgradeHistoryResponseDto } from './dto/upgrade-history-response.dto';
+import { UpgradeStatsResponseDto } from './dto/upgrade-stats-response.dto';
 
 @ApiTags('Upgrade')
 @Controller('upgrade')
@@ -52,5 +55,36 @@ export class UpgradeController {
       dto.multiplier,
       userId,
     );
+  }
+
+  @Get('history')
+  @UseGuards(UserGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user upgrade history' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns paginated upgrade history',
+    type: UpgradeHistoryResponseDto,
+  })
+  async getUpgradeHistory(
+    @Query() dto: GetUpgradeHistoryDto,
+    @User('id') userId: string,
+  ): Promise<UpgradeHistoryResponseDto> {
+    return this.upgradeService.getUpgradeHistory(userId, dto.page, dto.limit);
+  }
+
+  @Get('stats')
+  @UseGuards(UserGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user upgrade statistics' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns comprehensive upgrade statistics',
+    type: UpgradeStatsResponseDto,
+  })
+  async getUpgradeStats(
+    @User('id') userId: string,
+  ): Promise<UpgradeStatsResponseDto> {
+    return this.upgradeService.getUpgradeStats(userId);
   }
 }

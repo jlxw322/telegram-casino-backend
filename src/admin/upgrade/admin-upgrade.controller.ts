@@ -5,6 +5,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { AuthGuard } from '@nestjs/passport';
 import { AdminUpgradeService } from './admin-upgrade.service';
 import { AdminGuard } from '../../shared/guards/admin.guard';
 import { CreateUpgradeChanceDto } from './dto/create-upgrade-chance.dto';
@@ -13,7 +14,7 @@ import { UpgradeChanceResponseDto } from './dto/upgrade-chance-response.dto';
 
 @ApiTags('Admin - Upgrade')
 @Controller('admin/upgrade')
-@UseGuards(AdminGuard)
+@UseGuards(AuthGuard('jwt'), AdminGuard)
 @ApiBearerAuth()
 export class AdminUpgradeController {
   constructor(private readonly adminUpgradeService: AdminUpgradeService) {}

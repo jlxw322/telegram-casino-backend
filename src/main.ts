@@ -10,6 +10,8 @@ async function bootstrap() {
   if (NODE_ENV !== 'production') {
     app.setGlobalPrefix('api');
   }
+
+  // commit
   app.enableCors({
     origin: [
       'https://gifty-realm-production.up.railway.app',

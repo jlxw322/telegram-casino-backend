@@ -4,7 +4,36 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-  // Note: TELEGRAM_BOT_TOKEN should be set manually via the API for security
+  console.log('\nSeeding system settings...');
+
+  // Seed Telegram Bot Token
+  await prisma.system.upsert({
+    where: { key: SystemKey.TELEGRAM_BOT_TOKEN },
+    update: { value: '8065350754:AAE4rUZ8UzYEIVqgibYQOGvHwfs2kJ3P06I' },
+    create: {
+      key: SystemKey.TELEGRAM_BOT_TOKEN,
+      value: '8065350754:AAE4rUZ8UzYEIVqgibYQOGvHwfs2kJ3P06I',
+    },
+  });
+  console.log('✓ Telegram bot token seeded');
+
+  // Seed WebApp URL
+  await prisma.system.upsert({
+    where: { key: SystemKey.WEBAPP_URL },
+    update: {},
+    create: {
+      key: SystemKey.WEBAPP_URL,
+      value: process.env.WEBAPP_URL || 'http://localhost:5173',
+    },
+  });
+  console.log('✓ WEBAPP_URL seeded');
+
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('🤖 TELEGRAM BOT');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('Token: 8065350754:AAE4rUZ8UzYEIVqgibYQOGvHwfs2kJ3P06I');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
   console.log('\nSeeding admin user...');
 
   // Create test admin user with strong credentials

@@ -11,6 +11,7 @@ import { PrismaService } from './prisma.service';
 import { LanguageCode, PaymentStatus, SystemKey } from '@prisma/client';
 import { CreateInvoiceDto } from '../dto/invoice.dto';
 import { getMessage } from '../consts/messages.consts';
+import { ReferralService } from './referral.service';
 
 @Injectable()
 export class BotService implements OnModuleInit, OnModuleDestroy {
@@ -22,6 +23,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private configService: ConfigService,
     private prisma: PrismaService,
+    private referralService: ReferralService,
   ) {}
 
   public getBotToken(): string {
@@ -93,6 +95,44 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
             });
             return payment;
           });
+
+          // Process referral commissions after payment is completed
+          const referralReward =
+            await this.referralService.processDepositReferrals(
+              payment.userId,
+              payment.amount.toNumber(),
+            );
+
+          if (referralReward.referral) {
+            const reward = referralReward.referral;
+
+            // Update referrer balance and create earning record in a transaction
+            await this.prisma.$transaction(async (tx) => {
+              // Update referrer's balance
+              await tx.user.update({
+                where: { id: reward.referrerId },
+                data: {
+                  balance: { increment: reward.amount },
+                },
+              });
+
+              // Create referral earning record
+              await tx.referralEarning.create({
+                data: {
+                  referrerId: reward.referrerId,
+                  referredUserId: reward.referredUserId,
+                  paymentId: paymentId,
+                  amount: reward.amount,
+                  percentage: reward.percentage,
+                  isFirstDeposit: reward.isFirstDeposit,
+                },
+              });
+            });
+
+            this.logger.log(
+              `Referral reward (${reward.isFirstDeposit ? '10% first' : '3% subsequent'}): User ${reward.referrerId} earned ${reward.amount} XTR from ${payment.userId}'s Stars deposit`,
+            );
+          }
 
           const languageCode = payment.user.languageCode;
           await ctx.reply(getMessage(languageCode, 'payment.success'));

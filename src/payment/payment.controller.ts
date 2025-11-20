@@ -91,7 +91,7 @@ export class PaymentController {
     description: 'Internal server error',
   })
   async tonWebhook(@Body() data: any) {
-    // return await this.paymentService.tonWebhook(data);
+    return await this.paymentService.tonWebhook(data);
   }
 
   @Post('ton/initiate')

@@ -54,17 +54,22 @@ model User {
   isBanned     Boolean         @default(false)
   role         Role            @default(USER)
   
+  // Referral system
+  referredBy      String?         // ID of user who referred this user
 
-  inventory    InventoryItem[] @relation("UserInventory")
-  bets         Bet[]
-  payments     Payment[]
-  payouts      Payout[]
-  upgrades     Upgrade[]
+  inventory         InventoryItem[]     @relation("UserInventory")
+  bets              Bet[]
+  payments          Payment[]
+  payouts           Payout[]
+  upgrades          Upgrade[]
+  referralEarnings  ReferralEarning[]   @relation("ReferrerEarnings") // Earnings as a referrer
+  referralSources   ReferralEarning[]   @relation("ReferredUserPayments") // Payments that generated referrals
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([balance])
+  @@index([referredBy])
 }
 
 model InventoryItem {
@@ -213,10 +218,32 @@ model Payment {
   status     PaymentStatus @default(PENDING)
   invoiceId  String?   @unique
 
-  user User @relation(fields: [userId], references: [id])
+  user              User              @relation(fields: [userId], references: [id])
+  referralEarnings  ReferralEarning[] @relation("PaymentReferrals")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model ReferralEarning {
+  id              Int     @id @default(autoincrement())
+  referrerId      String  // User who earned the referral commission
+  referredUserId  String  // User who made the deposit
+  paymentId       String  // Payment that triggered the commission
+  amount          Decimal // Commission amount in XTR
+  percentage      Decimal // Commission percentage (0.10 for first, 0.03 for subsequent)
+  isFirstDeposit  Boolean // Whether this was from the first deposit
+
+  referrer      User    @relation("ReferrerEarnings", fields: [referrerId], references: [id])
+  referredUser  User    @relation("ReferredUserPayments", fields: [referredUserId], references: [id])
+  payment       Payment @relation("PaymentReferrals", fields: [paymentId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([referrerId, createdAt])
+  @@index([referredUserId, createdAt])
+  @@index([paymentId])
 }
 
 model System {

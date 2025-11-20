@@ -6,6 +6,7 @@ import {
   Post,
   Inject,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import {
@@ -14,11 +15,17 @@ import {
   ApiResponse,
   ApiTags,
   ApiBearerAuth,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { TelegramAuthDto } from './dto/telegram-auth.dto';
 import { User } from 'src/shared/decorator/user.decorator';
 import { WebsocketGateway } from 'src/websocket/websocket.gateway';
 import { AuthGuard } from '@nestjs/passport';
+import {
+  ReferralLinkDto,
+  ReferralStatsDto,
+  ReferralEarningDto,
+} from './dto/referral-response.dto';
 
 @Controller('user')
 @ApiTags('User')
@@ -114,5 +121,63 @@ export class UserController {
       count: this.websocketGateway.getActiveUsersCount(),
       timestamp: new Date().toISOString(),
     };
+  }
+
+  @Get('referral/link')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT')
+  @ApiOperation({ summary: 'Get referral link for user' })
+  @ApiResponse({
+    status: 200,
+    description: 'Referral link retrieved successfully',
+    type: ReferralLinkDto,
+  })
+  async getReferralLink(@User('id') userId: string) {
+    return this.userService.getReferralLink(userId);
+  }
+
+  @Get('referral/stats')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT')
+  @ApiOperation({ summary: 'Get referral statistics for user' })
+  @ApiResponse({
+    status: 200,
+    description: 'Referral statistics retrieved successfully',
+    type: ReferralStatsDto,
+  })
+  async getReferralStats(@User('id') userId: string) {
+    return this.userService.getReferralStats(userId);
+  }
+
+  @Get('referral/earnings')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT')
+  @ApiOperation({ summary: 'Get referral earnings history' })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
+  @ApiResponse({
+    status: 200,
+    description: 'Referral earnings history retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/ReferralEarningDto' },
+        },
+        total: { type: 'number' },
+      },
+    },
+  })
+  async getReferralEarnings(
+    @User('id') userId: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.userService.getReferralEarnings(
+      userId,
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 20,
+    );
   }
 }

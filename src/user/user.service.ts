@@ -5,6 +5,11 @@ import { PrismaService } from 'src/shared/services/prisma.service';
 import { TelegramAuthDto } from './dto/telegram-auth.dto';
 import { validateTelegramWebAppData } from './utils/telegram.utils';
 import { BotService } from 'src/shared/services/bot.service';
+import {
+  ReferralLinkDto,
+  ReferralStatsDto,
+  ReferralEarningDto,
+} from './dto/referral-response.dto';
 
 @Injectable()
 export class UserService {
@@ -83,13 +88,63 @@ export class UserService {
 
       const telegramId = String(parsedData.user.id);
 
+      // Extract referral code from start_param (format: ref_USERID)
+      let referrerId: string | null = null;
+      if (parsedData.start_param) {
+        const parts = parsedData.start_param.trim().split('_');
+        if (parts[0] === 'ref' && parts[1]) {
+          referrerId = parts[1];
+          this.logger.log(
+            `User ${telegramId} authenticated with referral code from ${referrerId}`,
+          );
+        }
+      }
+
+      // Check if user already exists
+      const existingUser = await this.prisma.user.findUnique({
+        where: { telegramId },
+        select: { id: true, referredBy: true },
+      });
+
+      // Only set referrer if:
+      // 1. User is new OR user exists but has no referrer
+      // 2. Referrer ID was provided
+      // 3. User is not trying to refer themselves
+      let shouldSetReferrer = false;
+      if (referrerId) {
+        if (!existingUser) {
+          // New user - check referrer exists and is not the same user
+          const referrer = await this.prisma.user.findUnique({
+            where: { id: referrerId },
+            select: { id: true, telegramId: true },
+          });
+
+          if (referrer && referrer.telegramId !== telegramId) {
+            shouldSetReferrer = true;
+          }
+        } else if (!existingUser.referredBy) {
+          // Existing user without referrer - check referrer exists and is not the same user
+          const referrer = await this.prisma.user.findUnique({
+            where: { id: referrerId },
+            select: { id: true, telegramId: true },
+          });
+
+          if (referrer && referrer.telegramId !== telegramId) {
+            shouldSetReferrer = true;
+          }
+        }
+      }
+
       const user = await this.prisma.user.upsert({
         where: { telegramId },
-        update: {},
+        update: {
+          ...(shouldSetReferrer && { referredBy: referrerId }),
+        },
         create: {
           telegramId,
           username: parsedData.user.username || 'Unknown',
           languageCode: parsedData.user.language_code === 'ru' ? 'ru' : 'en',
+          ...(shouldSetReferrer && { referredBy: referrerId }),
         },
         select: {
           id: true,
@@ -98,6 +153,12 @@ export class UserService {
           isBanned: true,
         },
       });
+
+      if (shouldSetReferrer) {
+        this.logger.log(
+          `Successfully set referrer ${referrerId} for user ${telegramId}`,
+        );
+      }
 
       if (user.isBanned) {
         throw new HttpException('User is banned', 403);
@@ -119,6 +180,164 @@ export class UserService {
       this.logger.error('Failed to authenticate with Telegram: ', error);
 
       throw new HttpException('Failed to authenticate', 500);
+    }
+  }
+
+  /**
+   * Get referral link for user
+   */
+  async getReferralLink(userId: string): Promise<ReferralLinkDto> {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true },
+      });
+
+      if (!user) {
+        throw new HttpException('User not found', 404);
+      }
+
+      // Get bot info to construct the referral link
+      const botInfo = await this.botService['bot'].api.getMe();
+      const botUsername = botInfo.username;
+
+      const referralCode = `ref_${userId}`;
+      const referralLink = `https://t.me/${botUsername}?start=${referralCode}`;
+
+      return {
+        referralLink,
+        referralCode,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error('Failed to get referral link: ', error);
+      throw new HttpException('Failed to get referral link', 500);
+    }
+  }
+
+  /**
+   * Get referral statistics for user
+   */
+  async getReferralStats(userId: string): Promise<ReferralStatsDto> {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true },
+      });
+
+      if (!user) {
+        throw new HttpException('User not found', 404);
+      }
+
+      // Get all referred users
+      const referredUsers = await this.prisma.user.findMany({
+        where: { referredBy: userId },
+        select: { id: true },
+      });
+
+      const totalReferrals = referredUsers.length;
+
+      // Get all earnings
+      const earnings = await this.prisma.referralEarning.findMany({
+        where: { referrerId: userId },
+        select: {
+          amount: true,
+          isFirstDeposit: true,
+        },
+      });
+
+      const totalEarnings = earnings.reduce(
+        (sum, e) => sum + e.amount.toNumber(),
+        0,
+      );
+      const firstDepositEarnings = earnings
+        .filter((e) => e.isFirstDeposit)
+        .reduce((sum, e) => sum + e.amount.toNumber(), 0);
+      const subsequentDepositEarnings = earnings
+        .filter((e) => !e.isFirstDeposit)
+        .reduce((sum, e) => sum + e.amount.toNumber(), 0);
+
+      // Get number of referrals who made at least one deposit
+      const activeReferralsCount = await this.prisma.referralEarning.groupBy({
+        by: ['referredUserId'],
+        where: { referrerId: userId },
+        _count: true,
+      });
+
+      return {
+        totalReferrals,
+        totalEarnings,
+        firstDepositEarnings,
+        subsequentDepositEarnings,
+        activeReferrals: activeReferralsCount.length,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error('Failed to get referral stats: ', error);
+      throw new HttpException('Failed to get referral stats', 500);
+    }
+  }
+
+  /**
+   * Get referral earnings history
+   */
+  async getReferralEarnings(
+    userId: string,
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<{ data: ReferralEarningDto[]; total: number }> {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true },
+      });
+
+      if (!user) {
+        throw new HttpException('User not found', 404);
+      }
+
+      const skip = (page - 1) * limit;
+
+      const [earnings, total] = await Promise.all([
+        this.prisma.referralEarning.findMany({
+          where: { referrerId: userId },
+          select: {
+            id: true,
+            referredUserId: true,
+            amount: true,
+            percentage: true,
+            isFirstDeposit: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit,
+        }),
+        this.prisma.referralEarning.count({
+          where: { referrerId: userId },
+        }),
+      ]);
+
+      const data = earnings.map((e) => ({
+        id: e.id,
+        referredUserId: e.referredUserId,
+        amount: e.amount.toNumber(),
+        percentage: e.percentage.toNumber(),
+        isFirstDeposit: e.isFirstDeposit,
+        createdAt: e.createdAt,
+      }));
+
+      return { data, total };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error('Failed to get referral earnings: ', error);
+      throw new HttpException('Failed to get referral earnings', 500);
     }
   }
 }

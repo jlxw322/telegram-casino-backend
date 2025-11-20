@@ -46,14 +46,68 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         this.webAppUrl,
       );
 
+      // Extract referral code from /start command (format: /start ref_USERID)
+      const startPayload = ctx.match; // Gets everything after /start
+      let referrerId: string | null = null;
+
+      if (startPayload && typeof startPayload === 'string') {
+        const parts = startPayload.trim().split('_');
+        if (parts[0] === 'ref' && parts[1]) {
+          referrerId = parts[1];
+          this.logger.log(
+            `User ${telegramId} started with referral code from ${referrerId}`,
+          );
+        }
+      }
+
+      // Check if user already exists
+      const existingUser = await this.prisma.user.findUnique({
+        where: { telegramId: telegramId.toString() },
+        select: { id: true, referredBy: true },
+      });
+
+      // Only set referrer if:
+      // 1. User is new OR user exists but has no referrer
+      // 2. Referrer ID was provided
+      // 3. User is not trying to refer themselves
+      let shouldSetReferrer = false;
+      if (referrerId) {
+        if (!existingUser) {
+          // New user - check referrer exists and is not the same user
+          const referrer = await this.prisma.user.findUnique({
+            where: { id: referrerId },
+            select: { id: true, telegramId: true },
+          });
+
+          if (referrer && referrer.telegramId !== telegramId.toString()) {
+            shouldSetReferrer = true;
+          }
+        } else if (!existingUser.referredBy) {
+          // Existing user without referrer - check referrer exists and is not the same user
+          const referrer = await this.prisma.user.findUnique({
+            where: { id: referrerId },
+            select: { id: true, telegramId: true },
+          });
+
+          if (referrer && referrer.telegramId !== telegramId.toString()) {
+            shouldSetReferrer = true;
+          }
+        }
+      }
+
       await Promise.all([
         this.prisma.user.upsert({
           where: { telegramId: telegramId.toString() },
-          update: { username: username, languageCode: languageCode },
+          update: {
+            username: username,
+            languageCode: languageCode,
+            ...(shouldSetReferrer && { referredBy: referrerId }),
+          },
           create: {
             telegramId: telegramId.toString(),
             username: username,
             languageCode: languageCode,
+            ...(shouldSetReferrer && { referredBy: referrerId }),
           },
         }),
         ctx.reply(getMessage(languageCode, 'bot.welcome'), {
@@ -61,6 +115,12 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
           parse_mode: 'Markdown',
         }),
       ]);
+
+      if (shouldSetReferrer) {
+        this.logger.log(
+          `Successfully set referrer ${referrerId} for user ${telegramId}`,
+        );
+      }
     });
 
     this.bot.on('message', async (ctx) => {

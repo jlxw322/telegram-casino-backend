@@ -120,6 +120,36 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         this.logger.log(
           `Successfully set referrer ${referrerId} for user ${telegramId}`,
         );
+
+        // Send notification to referrer about new referral
+        const referrer = await this.prisma.user.findUnique({
+          where: { id: referrerId },
+          select: { telegramId: true, languageCode: true },
+        });
+
+        if (referrer) {
+          const referrerMessage = getMessage(
+            referrer.languageCode,
+            'referral.newReferral',
+            { username: username },
+          );
+          await this.sendMessage(referrer.telegramId, referrerMessage);
+        }
+
+        // Send welcome message to referred user
+        const referrerInfo = await this.prisma.user.findUnique({
+          where: { id: referrerId },
+          select: { username: true },
+        });
+
+        if (referrerInfo) {
+          const welcomeMessage = getMessage(
+            languageCode,
+            'referral.welcomeReferral',
+            { referrerUsername: referrerInfo.username },
+          );
+          await this.sendMessage(telegramId.toString(), welcomeMessage);
+        }
       }
     });
 
@@ -192,6 +222,33 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
             this.logger.log(
               `Referral reward (${reward.isFirstDeposit ? '10% first' : '3% subsequent'}): User ${reward.referrerId} earned ${reward.amount} XTR from ${payment.userId}'s Stars deposit`,
             );
+
+            // Send notification to referrer about earning
+            const [referrer, referredUser] = await Promise.all([
+              this.prisma.user.findUnique({
+                where: { id: reward.referrerId },
+                select: { telegramId: true, languageCode: true },
+              }),
+              this.prisma.user.findUnique({
+                where: { id: reward.referredUserId },
+                select: { username: true },
+              }),
+            ]);
+
+            if (referrer && referredUser) {
+              const messageKey = reward.isFirstDeposit
+                ? 'referral.firstDepositReward'
+                : 'referral.subsequentDepositReward';
+              const notificationMessage = getMessage(
+                referrer.languageCode,
+                messageKey,
+                {
+                  username: referredUser.username,
+                  amount: reward.amount.toString(),
+                },
+              );
+              await this.sendMessage(referrer.telegramId, notificationMessage);
+            }
           }
 
           const languageCode = payment.user.languageCode;
@@ -379,6 +436,25 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
       return { invoice: invoice };
     } catch (error) {
       this.logger.error('Failed to create invoice link: ', error);
+    }
+  }
+
+  /**
+   * Send a message to a user by their telegramId
+   * @param telegramId - Telegram user ID
+   * @param message - Message text to send
+   */
+  async sendMessage(telegramId: string, message: string): Promise<void> {
+    try {
+      await this.bot.api.sendMessage(telegramId, message, {
+        parse_mode: 'Markdown',
+      });
+      this.logger.log(`Message sent to user ${telegramId}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send message to user ${telegramId}: ${error}`,
+      );
+      // Don't throw - message sending shouldn't block the main flow
     }
   }
 }

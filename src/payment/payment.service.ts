@@ -184,6 +184,36 @@ export class PaymentService {
             this.logger.log(
               `Referral reward (${reward.isFirstDeposit ? '10% first' : '3% subsequent'}): User ${reward.referrerId} earned ${reward.amount} XTR from ${payment.userId}'s TON deposit`,
             );
+
+            // Send notification to referrer about earning
+            const [referrer, referredUser] = await Promise.all([
+              this.prisma.user.findUnique({
+                where: { id: reward.referrerId },
+                select: { telegramId: true, languageCode: true },
+              }),
+              this.prisma.user.findUnique({
+                where: { id: reward.referredUserId },
+                select: { username: true },
+              }),
+            ]);
+
+            if (referrer && referredUser) {
+              const messageKey = reward.isFirstDeposit
+                ? 'referral.firstDepositReward'
+                : 'referral.subsequentDepositReward';
+              const notificationMessage = getMessage(
+                referrer.languageCode,
+                messageKey,
+                {
+                  username: referredUser.username,
+                  amount: reward.amount.toString(),
+                },
+              );
+              await this.bot.sendMessage(
+                referrer.telegramId,
+                notificationMessage,
+              );
+            }
           }
 
           return {

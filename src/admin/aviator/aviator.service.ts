@@ -218,6 +218,7 @@ export class AviatorService implements OnModuleInit {
    * Only one ACTIVE game can exist at a time
    */
   async createOrGetAviator() {
+    console.log('🚀 createOrGetAviator() called');
     try {
       // Check if there's already an active game
       const existingGame = await this.prisma.aviator.findFirst({
@@ -247,8 +248,11 @@ export class AviatorService implements OnModuleInit {
       });
 
       if (existingGame) {
+        console.log(`✅ Found existing active game #${existingGame.id}`);
         return existingGame;
       }
+
+      console.log('📝 No active game found, creating new one...');
 
       // Get the latest nonce from database
       const latestGame = await this.prisma.aviator.findFirst({
@@ -261,9 +265,11 @@ export class AviatorService implements OnModuleInit {
       });
 
       const nonce = latestGame ? latestGame.nonce + 1 : 1;
+      console.log(`📊 Nonce: ${nonce}`);
 
       // Generate client seed
       const clientSeed = this.generateClientSeed();
+      console.log(`🎲 Generated clientSeed: ${clientSeed}`);
 
       // Calculate multiplier using provably fair algorithm
       const multiplier = this.crashRoundMultiplier(
@@ -271,6 +277,7 @@ export class AviatorService implements OnModuleInit {
         clientSeed,
         nonce,
       );
+      console.log(`🎯 Calculated multiplier: ${multiplier}x`);
 
       // Create new game with startsAt = now + 6 seconds
       const startsAt = new Date(Date.now() + 6000);
@@ -302,12 +309,14 @@ export class AviatorService implements OnModuleInit {
         },
       });
 
+      console.log(`✅ Created new aviator game #${newGame.id}`);
       this.logger.log(
         `Created new aviator game #${newGame.id} with multiplier ${multiplier}x (nonce: ${nonce}, clientSeed: ${clientSeed}), starts at ${startsAt.toISOString()}`,
       );
 
       return newGame;
     } catch (error) {
+      console.error('❌ Error in createOrGetAviator:', error);
       this.logger.error('Failed to create or get aviator game', error);
       throw new HttpException('Failed to create or get aviator game', 500);
     }

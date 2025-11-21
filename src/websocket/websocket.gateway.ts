@@ -170,6 +170,9 @@ export class WebsocketGateway
   @UseGuards(WsJwtGuard)
   @SubscribeMessage('aviator:createOrGet')
   async handleCreateOrGetAviator(@ConnectedSocket() client: Socket) {
+    this.logger.log(
+      `🎮 HANDLER START: aviator:createOrGet from client ${client.id}, userId: ${client.data.userId}`,
+    );
     try {
       this.logger.log(`Client ${client.id} requesting aviator game`);
       const game = await this.aviatorService.createOrGetAviator();
@@ -207,6 +210,9 @@ export class WebsocketGateway
   @UseGuards(WsJwtGuard)
   @SubscribeMessage('aviator:getCurrent')
   async handleGetCurrentAviator(@ConnectedSocket() client: Socket) {
+    this.logger.log(
+      `🎮 HANDLER START: aviator:getCurrent from client ${client.id}, userId: ${client.data.userId}`,
+    );
     try {
       this.logger.log(`Client ${client.id} requesting current aviator game`);
       const game = await this.aviatorService.getCurrentGame();

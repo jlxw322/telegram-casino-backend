@@ -283,8 +283,8 @@ export class AviatorService implements OnModuleInit {
       );
       console.log(`🎯 Calculated multiplier: ${multiplier}x`);
 
-      // Create new game with status WAITING and startsAt = now + 10 seconds
-      const startsAt = new Date(Date.now() + 10000); // 10 seconds waiting time
+      // Create new game with status WAITING and startsAt = now + 5 seconds
+      const startsAt = new Date(Date.now() + 5000); // 5 seconds waiting time
 
       const newGame = await this.prisma.aviator.create({
         data: {

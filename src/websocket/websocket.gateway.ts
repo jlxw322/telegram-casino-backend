@@ -172,15 +172,24 @@ export class WebsocketGateway
         this.broadcastGameState(gameWithBets);
       }
 
-      // ACTIVE → FINISHED transition (game duration: 5-15 seconds after start)
+      // ACTIVE → FINISHED transition
+      // Вычисляем когда игра должна крашнуться на основе multiplier
       if (game.status === 'ACTIVE') {
-        const gameDuration = 5000 + Math.random() * 10000; // 5-15 seconds
         const gameStartedAt = startsAt.getTime();
-        const shouldFinish = now.getTime() >= gameStartedAt + gameDuration;
+        const elapsedMs = now.getTime() - gameStartedAt;
+
+        // Формула: multiplier растет экспоненциально
+        // multiplier = 1 + (elapsed / 1000) ^ 1.5 * 3
+        // Обратная формула для времени краша:
+        // elapsed = ((multiplier - 1) / 3) ^ (1/1.5) * 1000
+        const crashMultiplier = Number(game.multiplier);
+        const crashTimeMs = Math.pow((crashMultiplier - 1) / 3, 1 / 1.5) * 1000;
+
+        const shouldFinish = elapsedMs >= crashTimeMs;
 
         if (shouldFinish) {
           this.logger.log(
-            `💥 Game #${game.id} transitioning from ACTIVE to FINISHED (crashed at ${game.multiplier}x)`,
+            `💥 Game #${game.id} transitioning from ACTIVE to FINISHED (crashed at ${game.multiplier}x after ${Math.round(crashTimeMs)}ms)`,
           );
 
           await this.aviatorService.updateGameStatus(

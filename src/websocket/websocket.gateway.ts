@@ -208,9 +208,11 @@ export class WebsocketGateway
   @SubscribeMessage('aviator:getCurrent')
   async handleGetCurrentAviator(@ConnectedSocket() client: Socket) {
     try {
+      this.logger.log(`Client ${client.id} requesting current aviator game`);
       const game = await this.aviatorService.getCurrentGame();
 
       if (!game) {
+        this.logger.log(`No active aviator game found for client ${client.id}`);
         return {
           event: 'aviator:noGame',
           data: null,
@@ -227,6 +229,10 @@ export class WebsocketGateway
           cashedAt: bet.cashedAt ? Number(bet.cashedAt) : null,
         })),
       };
+
+      this.logger.log(
+        `Sending current aviator game #${game.id} to client ${client.id}`,
+      );
 
       return {
         event: 'aviator:game',
@@ -251,8 +257,14 @@ export class WebsocketGateway
   ) {
     try {
       const userId = client.data.userId;
+      this.logger.log(
+        `User ${userId} placing bet on aviator #${data.aviatorId} for ${data.amount}`,
+      );
 
       if (!data.aviatorId || !data.amount) {
+        this.logger.warn(
+          `Invalid bet data from user ${userId}: ${JSON.stringify(data)}`,
+        );
         return {
           event: 'error',
           data: {
@@ -265,6 +277,10 @@ export class WebsocketGateway
         userId,
         data.aviatorId,
         data.amount,
+      );
+
+      this.logger.log(
+        `Bet #${bet.id} placed successfully by user ${userId}. Broadcasting to all clients.`,
       );
 
       // Broadcast new bet to all clients
@@ -282,7 +298,10 @@ export class WebsocketGateway
         data: bet,
       };
     } catch (error) {
-      this.logger.error('Error in aviator:placeBet', error);
+      this.logger.error(
+        `Error placing bet for user ${client.data.userId}: ${error.message}`,
+        error.stack,
+      );
       return {
         event: 'error',
         data: {
@@ -300,8 +319,14 @@ export class WebsocketGateway
   ) {
     try {
       const userId = client.data.userId;
+      this.logger.log(
+        `User ${userId} cashing out bet #${data.betId} at ${data.currentMultiplier}x`,
+      );
 
       if (!data.betId || !data.currentMultiplier) {
+        this.logger.warn(
+          `Invalid cashout data from user ${userId}: ${JSON.stringify(data)}`,
+        );
         return {
           event: 'error',
           data: {
@@ -314,6 +339,10 @@ export class WebsocketGateway
         userId,
         data.betId,
         data.currentMultiplier,
+      );
+
+      this.logger.log(
+        `User ${userId} cashed out bet #${data.betId} successfully. Win: ${result.winAmount}. Broadcasting to all clients.`,
       );
 
       // Broadcast cash out to all clients
@@ -333,7 +362,10 @@ export class WebsocketGateway
         data: result,
       };
     } catch (error) {
-      this.logger.error('Error in aviator:cashOut', error);
+      this.logger.error(
+        `Error cashing out for user ${client.data.userId}: ${error.message}`,
+        error.stack,
+      );
       return {
         event: 'error',
         data: {
@@ -351,8 +383,14 @@ export class WebsocketGateway
   ) {
     try {
       const userId = client.data.userId;
+      this.logger.log(
+        `User ${userId} depositing inventory item #${data.inventoryItemId} to aviator #${data.aviatorId}`,
+      );
 
       if (!data.inventoryItemId || !data.aviatorId) {
+        this.logger.warn(
+          `Invalid deposit data from user ${userId}: ${JSON.stringify(data)}`,
+        );
         return {
           event: 'error',
           data: {
@@ -365,6 +403,10 @@ export class WebsocketGateway
         userId,
         data.inventoryItemId,
         data.aviatorId,
+      );
+
+      this.logger.log(
+        `User ${userId} deposited inventory item successfully. Bet #${result.betId} created. Broadcasting to all clients.`,
       );
 
       // Broadcast new inventory bet to all clients
@@ -383,7 +425,10 @@ export class WebsocketGateway
         data: result,
       };
     } catch (error) {
-      this.logger.error('Error in aviator:depositInventory', error);
+      this.logger.error(
+        `Error depositing inventory for user ${client.data.userId}: ${error.message}`,
+        error.stack,
+      );
       return {
         event: 'error',
         data: {
@@ -400,7 +445,15 @@ export class WebsocketGateway
     @MessageBody() data: { currentAmount: number },
   ) {
     try {
+      const userId = client.data.userId;
+      this.logger.log(
+        `User ${userId} requesting possible prize for amount ${data.currentAmount}`,
+      );
+
       if (!data.currentAmount) {
+        this.logger.warn(
+          `Invalid prize request from user ${userId}: ${JSON.stringify(data)}`,
+        );
         return {
           event: 'error',
           data: {
@@ -413,12 +466,19 @@ export class WebsocketGateway
         data.currentAmount,
       );
 
+      this.logger.log(
+        `User ${userId} possible prize: ${prize ? prize.name : 'none'}`,
+      );
+
       return {
         event: 'aviator:possiblePrize',
         data: prize,
       };
     } catch (error) {
-      this.logger.error('Error in aviator:getPossiblePrize', error);
+      this.logger.error(
+        `Error getting possible prize for user ${client.data.userId}: ${error.message}`,
+        error.stack,
+      );
       return {
         event: 'error',
         data: {
@@ -436,8 +496,14 @@ export class WebsocketGateway
   ) {
     try {
       const userId = client.data.userId;
+      this.logger.log(
+        `User ${userId} cashing out gift from bet #${data.betId} at ${data.currentMultiplier}x`,
+      );
 
       if (!data.betId || !data.currentMultiplier) {
+        this.logger.warn(
+          `Invalid gift cashout data from user ${userId}: ${JSON.stringify(data)}`,
+        );
         return {
           event: 'error',
           data: {
@@ -450,6 +516,10 @@ export class WebsocketGateway
         userId,
         data.betId,
         data.currentMultiplier,
+      );
+
+      this.logger.log(
+        `User ${userId} cashed out gift successfully. Prize: ${result.prize.name}. Broadcasting to all clients.`,
       );
 
       // Broadcast gift cash out to all clients
@@ -469,7 +539,10 @@ export class WebsocketGateway
         data: result,
       };
     } catch (error) {
-      this.logger.error('Error in aviator:cashOutGift', error);
+      this.logger.error(
+        `Error cashing out gift for user ${client.data.userId}: ${error.message}`,
+        error.stack,
+      );
       return {
         event: 'error',
         data: {

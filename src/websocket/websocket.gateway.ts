@@ -65,6 +65,7 @@ export class WebsocketGateway
           username: true,
         },
       });
+      // test
 
       if (!user) {
         this.logger.warn(`User not found for token: ${client.id}`);

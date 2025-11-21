@@ -8,7 +8,12 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UseGuards } from '@nestjs/common';
+import {
+  Logger,
+  UseGuards,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../shared/services/prisma.service';
 import { AviatorService } from '../admin/aviator/aviator.service';
@@ -22,19 +27,225 @@ import { WsJwtGuard } from './guards/ws-jwt.guard';
   namespace: '/ws',
 })
 export class WebsocketGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
+  implements
+    OnGatewayConnection,
+    OnGatewayDisconnect,
+    OnModuleInit,
+    OnModuleDestroy
 {
   @WebSocketServer()
   server: Server;
 
   private readonly logger = new Logger(WebsocketGateway.name);
   private activeUsers: Map<string, string> = new Map(); // userId -> socket ID (only one connection per user)
+  private gameLoopInterval: NodeJS.Timeout | null = null; // Interval for game loop
+  private currentGameId: number | null = null; // Current game ID being tracked
 
   constructor(
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
     private readonly aviatorService: AviatorService,
   ) {}
+
+  /**
+   * Initialize game loop when module starts
+   */
+  async onModuleInit() {
+    this.logger.log('🎮 Starting aviator game loop...');
+    await this.startGameLoop();
+  }
+
+  /**
+   * Cleanup when module destroys
+   */
+  onModuleDestroy() {
+    if (this.gameLoopInterval) {
+      clearInterval(this.gameLoopInterval);
+      this.logger.log('🛑 Game loop stopped');
+    }
+  }
+
+  /**
+   * Start the automatic game loop
+   * WAITING (10s) → ACTIVE (game duration) → FINISHED → new WAITING
+   */
+  private async startGameLoop() {
+    try {
+      // Create or get initial game
+      const game = await this.aviatorService.createOrGetAviator();
+      this.currentGameId = game.id;
+      this.logger.log(
+        `🎮 Initial game #${game.id} created with status ${game.status}`,
+      );
+
+      // Broadcast initial game state
+      this.broadcastGameState(game);
+
+      // Check game state every second
+      this.gameLoopInterval = setInterval(async () => {
+        await this.updateGameState();
+      }, 1000);
+    } catch (error) {
+      this.logger.error('Failed to start game loop', error);
+    }
+  }
+
+  /**
+   * Update game state based on current time and status
+   */
+  private async updateGameState() {
+    try {
+      if (!this.currentGameId) return;
+
+      const game = await this.prisma.aviator.findUnique({
+        where: { id: this.currentGameId },
+        include: {
+          bets: {
+            select: {
+              id: true,
+              amount: true,
+              cashedAt: true,
+              createdAt: true,
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                  telegramId: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!game) {
+        this.logger.warn(
+          `Game #${this.currentGameId} not found, creating new one`,
+        );
+        const newGame = await this.aviatorService.createOrGetAviator();
+        this.currentGameId = newGame.id;
+        this.broadcastGameState(newGame);
+        return;
+      }
+
+      const now = new Date();
+      const startsAt = new Date(game.startsAt);
+
+      // WAITING → ACTIVE transition
+      if (game.status === 'WAITING' && now >= startsAt) {
+        this.logger.log(
+          `🚀 Game #${game.id} transitioning from WAITING to ACTIVE`,
+        );
+
+        const updatedGame = await this.aviatorService.updateGameStatus(
+          game.id,
+          'ACTIVE' as any,
+        );
+
+        const gameWithBets = await this.prisma.aviator.findUnique({
+          where: { id: game.id },
+          include: {
+            bets: {
+              select: {
+                id: true,
+                amount: true,
+                cashedAt: true,
+                createdAt: true,
+                user: {
+                  select: {
+                    id: true,
+                    username: true,
+                    telegramId: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        this.server.emit('aviator:statusChange', {
+          gameId: game.id,
+          status: 'ACTIVE',
+          timestamp: now.toISOString(),
+        });
+
+        this.broadcastGameState(gameWithBets);
+      }
+
+      // ACTIVE → FINISHED transition (game duration: 5-15 seconds after start)
+      if (game.status === 'ACTIVE') {
+        const gameDuration = 5000 + Math.random() * 10000; // 5-15 seconds
+        const gameStartedAt = startsAt.getTime();
+        const shouldFinish = now.getTime() >= gameStartedAt + gameDuration;
+
+        if (shouldFinish) {
+          this.logger.log(
+            `💥 Game #${game.id} transitioning from ACTIVE to FINISHED (crashed at ${game.multiplier}x)`,
+          );
+
+          await this.aviatorService.updateGameStatus(
+            game.id,
+            'FINISHED' as any,
+          );
+
+          this.server.emit('aviator:crashed', {
+            gameId: game.id,
+            multiplier: Number(game.multiplier),
+            timestamp: now.toISOString(),
+          });
+
+          this.server.emit('aviator:statusChange', {
+            gameId: game.id,
+            status: 'FINISHED',
+            timestamp: now.toISOString(),
+          });
+
+          // Wait 3 seconds before creating new game
+          setTimeout(async () => {
+            const newGame = await this.aviatorService.createOrGetAviator();
+            this.currentGameId = newGame.id;
+            this.logger.log(
+              `🆕 New game #${newGame.id} created with status ${newGame.status}`,
+            );
+            this.broadcastGameState(newGame);
+          }, 3000);
+        }
+      }
+
+      // Broadcast countdown for WAITING games
+      if (game.status === 'WAITING') {
+        const timeLeft = Math.max(
+          0,
+          Math.ceil((startsAt.getTime() - now.getTime()) / 1000),
+        );
+
+        this.server.emit('aviator:countdown', {
+          gameId: game.id,
+          secondsLeft: timeLeft,
+          startsAt: startsAt.toISOString(),
+        });
+      }
+    } catch (error) {
+      this.logger.error('Error in updateGameState', error);
+    }
+  }
+
+  /**
+   * Broadcast current game state to all clients
+   */
+  private broadcastGameState(game: any) {
+    const response = {
+      ...game,
+      multiplier: Number(game.multiplier),
+      bets: game.bets.map((bet) => ({
+        ...bet,
+        amount: Number(bet.amount),
+        cashedAt: bet.cashedAt ? Number(bet.cashedAt) : null,
+      })),
+    };
+
+    this.server.emit('aviator:game', response);
+  }
 
   async handleConnection(client: Socket) {
     try {

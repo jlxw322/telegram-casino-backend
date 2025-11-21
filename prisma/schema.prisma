@@ -182,7 +182,7 @@ model Aviator {
   id          Int     @id @default(autoincrement())
   startsAt    DateTime
   multiplier  Decimal
-  status      AviatorStatus @default(ACTIVE)
+  status      AviatorStatus @default(WAITING)
   clientSeed  String?
   nonce       Int     @default(0)
 
@@ -193,8 +193,9 @@ model Aviator {
 }
 
 enum AviatorStatus {
-  ACTIVE
-  FINISHED
+  WAITING   // Ожидание старта (10 секунд)
+  ACTIVE    // Игра идет
+  FINISHED  // Игра завершена
 }
 
 model Bet {

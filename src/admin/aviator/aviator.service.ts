@@ -215,15 +215,17 @@ export class AviatorService implements OnModuleInit {
 
   /**
    * Create or get active aviator game
-   * Only one ACTIVE game can exist at a time
+   * Only one ACTIVE or WAITING game can exist at a time
    */
   async createOrGetAviator() {
     console.log('🚀 createOrGetAviator() called');
     try {
-      // Check if there's already an active game
+      // Check if there's already an active or waiting game
       const existingGame = await this.prisma.aviator.findFirst({
         where: {
-          status: AviatorStatus.ACTIVE,
+          status: {
+            in: [AviatorStatus.WAITING, AviatorStatus.ACTIVE],
+          },
         },
         orderBy: {
           createdAt: 'desc',
@@ -248,11 +250,13 @@ export class AviatorService implements OnModuleInit {
       });
 
       if (existingGame) {
-        console.log(`✅ Found existing active game #${existingGame.id}`);
+        console.log(
+          `✅ Found existing game #${existingGame.id} with status ${existingGame.status}`,
+        );
         return existingGame;
       }
 
-      console.log('📝 No active game found, creating new one...');
+      console.log('📝 No active/waiting game found, creating new one...');
 
       // Get the latest nonce from database
       const latestGame = await this.prisma.aviator.findFirst({
@@ -279,8 +283,8 @@ export class AviatorService implements OnModuleInit {
       );
       console.log(`🎯 Calculated multiplier: ${multiplier}x`);
 
-      // Create new game with startsAt = now + 6 seconds
-      const startsAt = new Date(Date.now() + 6000);
+      // Create new game with status WAITING and startsAt = now + 10 seconds
+      const startsAt = new Date(Date.now() + 10000); // 10 seconds waiting time
 
       const newGame = await this.prisma.aviator.create({
         data: {
@@ -288,7 +292,7 @@ export class AviatorService implements OnModuleInit {
           multiplier,
           clientSeed,
           nonce,
-          status: AviatorStatus.ACTIVE,
+          status: AviatorStatus.WAITING, // Start in WAITING status
         },
         include: {
           bets: {
@@ -309,7 +313,9 @@ export class AviatorService implements OnModuleInit {
         },
       });
 
-      console.log(`✅ Created new aviator game #${newGame.id}`);
+      console.log(
+        `✅ Created new aviator game #${newGame.id} with WAITING status`,
+      );
       this.logger.log(
         `Created new aviator game #${newGame.id} with multiplier ${multiplier}x (nonce: ${nonce}, clientSeed: ${clientSeed}), starts at ${startsAt.toISOString()}`,
       );
@@ -323,13 +329,15 @@ export class AviatorService implements OnModuleInit {
   }
 
   /**
-   * Get current active game
+   * Get current active or waiting game
    */
   async getCurrentGame() {
     try {
       const game = await this.prisma.aviator.findFirst({
         where: {
-          status: AviatorStatus.ACTIVE,
+          status: {
+            in: [AviatorStatus.WAITING, AviatorStatus.ACTIVE],
+          },
         },
         orderBy: {
           createdAt: 'desc',
@@ -354,7 +362,7 @@ export class AviatorService implements OnModuleInit {
       });
 
       if (!game) {
-        throw new HttpException('No active aviator game found', 404);
+        throw new HttpException('No active or waiting aviator game found', 404);
       }
 
       return game;
@@ -413,9 +421,9 @@ export class AviatorService implements OnModuleInit {
         throw new HttpException('Aviator game not found', 404);
       }
 
-      // Check if game is still active
-      if (game.status !== AviatorStatus.ACTIVE) {
-        throw new HttpException('Game is no longer active', 400);
+      // Check if game is in WAITING status (bets only allowed during WAITING)
+      if (game.status !== AviatorStatus.WAITING) {
+        throw new HttpException('Game is not accepting bets', 400);
       }
 
       // Check if game has already started
@@ -663,8 +671,8 @@ export class AviatorService implements OnModuleInit {
           throw new HttpException('Aviator game not found', 404);
         }
 
-        if (game.status !== 'ACTIVE') {
-          throw new HttpException('Game is not active', 400);
+        if (game.status !== AviatorStatus.WAITING) {
+          throw new HttpException('Game is not accepting bets', 400);
         }
 
         // Check if game has already started

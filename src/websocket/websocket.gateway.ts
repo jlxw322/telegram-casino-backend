@@ -38,6 +38,10 @@ export class WebsocketGateway
 
   async handleConnection(client: Socket) {
     try {
+      this.logger.log(
+        `🔌 New connection attempt: ${client.id} on namespace: ${client.nsp.name}`,
+      );
+
       // Extract token from handshake auth or query
       const token =
         client.handshake.auth?.token || client.handshake.query?.token;
@@ -109,6 +113,14 @@ export class WebsocketGateway
       client.emit('connected', {
         message: 'Connected successfully',
         activeUsers: this.getActiveUsersCount(),
+      });
+
+      // Add catch-all event listener to log all incoming events
+      client.onAny((eventName, ...args) => {
+        this.logger.log(
+          `📨 Received event: ${eventName} from client ${client.id} (user: ${client.data.userId})`,
+        );
+        this.logger.debug(`Event data:`, args);
       });
     } catch (error) {
       this.logger.error(`Connection error: ${error.message}`, error.stack);

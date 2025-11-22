@@ -14,6 +14,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { AuthGuard } from '@nestjs/passport';
 import { CaseService } from './case.service';
 import { UserGuard } from '../shared/guards/user.guard';
 import { User } from '../shared/decorator/user.decorator';
@@ -59,7 +60,7 @@ export class CaseController {
   }
 
   @Get(':id/cooldown')
-  @UseGuards(UserGuard)
+  @UseGuards(AuthGuard('jwt'), UserGuard)
   @ApiBearerAuth('JWT')
   @ApiOperation({
     summary: 'Check free case cooldown timer for authenticated user',
@@ -76,7 +77,7 @@ export class CaseController {
   }
 
   @Post(':id/open')
-  @UseGuards(UserGuard)
+  @UseGuards(AuthGuard('jwt'), UserGuard)
   @ApiBearerAuth('JWT')
   @ApiOperation({ summary: 'Open a case and receive random prizes' })
   @ApiResponse({

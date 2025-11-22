@@ -350,17 +350,14 @@ async function main() {
 
   // Create case items with chances
   const caseItems = [
-    // Bronze Case items
     { name: 'Common Prize', chance: 0.5, prizeId: 1, caseId: 1 },
     { name: 'Uncommon Prize', chance: 0.3, prizeId: 2, caseId: 1 },
     { name: 'Rare Prize', chance: 0.15, prizeId: 3, caseId: 1 },
     { name: 'Epic Prize', chance: 0.05, prizeId: 4, caseId: 1 },
-    // Silver Case items
     { name: 'Uncommon Prize', chance: 0.4, prizeId: 2, caseId: 2 },
     { name: 'Rare Prize', chance: 0.35, prizeId: 3, caseId: 2 },
     { name: 'Epic Prize', chance: 0.2, prizeId: 4, caseId: 2 },
     { name: 'Legendary Prize', chance: 0.05, prizeId: 5, caseId: 2 },
-    // Gold Case items
     { name: 'Rare Prize', chance: 0.3, prizeId: 3, caseId: 3 },
     { name: 'Epic Prize', chance: 0.35, prizeId: 4, caseId: 3 },
     { name: 'Legendary Prize', chance: 0.25, prizeId: 5, caseId: 3 },

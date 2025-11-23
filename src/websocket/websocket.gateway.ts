@@ -88,12 +88,16 @@ export class WebsocketGateway
       this.broadcastGameState(game);
 
       // Check game state every second
-      this.logger.log('⏰ Setting up game loop interval (checking every 1 second)');
+      this.logger.log(
+        '⏰ Setting up game loop interval (checking every 1 second)',
+      );
       this.gameLoopInterval = setInterval(async () => {
         await this.updateGameState();
       }, 1000);
-      
-      this.logger.log(`✅ Game loop started successfully. Monitoring game #${game.id}`);
+
+      this.logger.log(
+        `✅ Game loop started successfully. Monitoring game #${game.id}`,
+      );
     } catch (error) {
       this.logger.error('Failed to start game loop', error);
     }

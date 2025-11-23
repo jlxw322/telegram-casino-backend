@@ -659,19 +659,36 @@ export class WebsocketGateway
         `Bet #${bet.id} placed successfully by user ${userId}. Broadcasting to all clients.`,
       );
 
+      // Convert Decimal to number for JSON
+      const betResponse = {
+        id: bet.id,
+        aviatorId: bet.aviatorId,
+        userId: bet.userId,
+        amount: Number(bet.amount),
+        cashedAt: bet.cashedAt ? Number(bet.cashedAt) : null,
+        isInventoryBet: bet.isInventoryBet,
+        createdAt: bet.createdAt,
+        updatedAt: bet.updatedAt,
+        user: bet.user,
+      };
+
       // Broadcast new bet to all clients
       this.server.emit('aviator:newBet', {
         betId: bet.id,
         aviatorId: bet.aviatorId,
         userId: bet.userId,
         username: bet.user.username,
-        amount: bet.amount,
+        amount: Number(bet.amount),
         timestamp: bet.createdAt,
       });
 
+      this.logger.log(
+        `✅ Returning bet response to client: betId=${bet.id}, amount=${Number(bet.amount)}`,
+      );
+
       return {
         event: 'aviator:betPlaced',
-        data: bet,
+        data: betResponse,
       };
     } catch (error) {
       this.logger.error(

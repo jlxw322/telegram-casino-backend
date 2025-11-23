@@ -294,7 +294,55 @@ const socket = io('ws://your-domain/ws', {
 
 ---
 
-### 9. `aviator:newBet`
+### 9. `aviator:betPlaced`
+
+**Когда отправляется:** Персонально игроку, который успешно разместил ставку
+
+**Payload:**
+
+```typescript
+{
+  id: number,                  // ID ставки (ВАЖНО для cashOut!)
+  aviatorId: number,
+  userId: string,
+  amount: number,
+  cashedAt: number | null,
+  isInventoryBet: boolean,
+  createdAt: string,           // ISO дата
+  updatedAt: string,           // ISO дата
+  user: {
+    id: string,
+    username: string,
+    balance: number
+  }
+}
+```
+
+**Пример:**
+
+```json
+{
+  "id": 789,
+  "aviatorId": 123,
+  "userId": "user123",
+  "amount": 100,
+  "cashedAt": null,
+  "isInventoryBet": false,
+  "createdAt": "2025-11-23T12:00:02.000Z",
+  "updatedAt": "2025-11-23T12:00:02.000Z",
+  "user": {
+    "id": "user123",
+    "username": "player1",
+    "balance": 900
+  }
+}
+```
+
+**⚠️ ВАЖНО:** Сохраните `id` из этого события! Он нужен для `aviator:cashOut`.
+
+---
+
+### 10. `aviator:newBet`
 
 **Когда отправляется:** Всем клиентам, когда кто-то делает ставку
 
@@ -326,7 +374,7 @@ const socket = io('ws://your-domain/ws', {
 
 ---
 
-### 10. `aviator:cashOut`
+### 11. `aviator:cashOut`
 
 **Когда отправляется:** Всем клиентам, когда кто-то делает кешаут
 
@@ -362,7 +410,7 @@ const socket = io('ws://your-domain/ws', {
 
 ---
 
-### 11. `aviator:newInventoryBet`
+### 12. `aviator:newInventoryBet`
 
 **Когда отправляется:** Всем клиентам, когда кто-то делает ставку предметом из инвентаря
 
@@ -387,7 +435,7 @@ const socket = io('ws://your-domain/ws', {
 
 ---
 
-### 12. `aviator:giftCashedOut`
+### 13. `aviator:giftCashedOut`
 
 **Когда отправляется:** Всем клиентам, когда кто-то кешаутит предмет за приз
 
@@ -413,7 +461,7 @@ const socket = io('ws://your-domain/ws', {
 
 ---
 
-### 13. `aviator:possiblePrize`
+### 14. `aviator:possiblePrize`
 
 **Когда отправляется:** В ответ на запрос `aviator:getPossiblePrize`
 
@@ -430,7 +478,7 @@ const socket = io('ws://your-domain/ws', {
 
 ---
 
-### 14. `aviator:history`
+### 15. `aviator:history`
 
 **Когда отправляется:** В ответ на запрос `aviator:getHistory`
 
@@ -489,7 +537,7 @@ const socket = io('ws://your-domain/ws', {
 
 ---
 
-### 15. `activeUsersCount`
+### 16. `activeUsersCount`
 
 **Когда отправляется:**
 
@@ -516,7 +564,7 @@ const socket = io('ws://your-domain/ws', {
 
 ---
 
-### 16. `error`
+### 17. `error`
 
 **Когда отправляется:** При возникновении ошибки в обработке запроса
 

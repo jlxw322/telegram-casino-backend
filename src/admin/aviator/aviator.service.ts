@@ -4,6 +4,7 @@ import {
   OnModuleInit,
   HttpException,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../shared/services/prisma.service';
 import { SystemKey, AviatorStatus } from '@prisma/client';
 import * as crypto from 'crypto';
@@ -982,6 +983,60 @@ export class AviatorService implements OnModuleInit {
     } catch (error) {
       this.logger.error('Failed to get game history', error);
       throw new HttpException('Failed to get game history', 500);
+    }
+  }
+
+  /**
+   * Cleanup stale games - runs every 30 seconds
+   * Finishes WAITING games older than 15 seconds
+   * Finishes ACTIVE games older than 30 seconds
+   */
+  @Cron(CronExpression.EVERY_30_SECONDS)
+  async cleanupStaleGames() {
+    try {
+      const now = new Date();
+      const fifteenSecondsAgo = new Date(now.getTime() - 15000);
+      const thirtySecondsAgo = new Date(now.getTime() - 30000);
+
+      // Finish WAITING games older than 15 seconds
+      const staleWaitingGames = await this.prisma.aviator.updateMany({
+        where: {
+          status: AviatorStatus.WAITING,
+          startsAt: {
+            lt: fifteenSecondsAgo,
+          },
+        },
+        data: {
+          status: AviatorStatus.FINISHED,
+        },
+      });
+
+      if (staleWaitingGames.count > 0) {
+        this.logger.warn(
+          `🧹 Cleaned up ${staleWaitingGames.count} stale WAITING games`,
+        );
+      }
+
+      // Finish ACTIVE games older than 30 seconds
+      const staleActiveGames = await this.prisma.aviator.updateMany({
+        where: {
+          status: AviatorStatus.ACTIVE,
+          startsAt: {
+            lt: thirtySecondsAgo,
+          },
+        },
+        data: {
+          status: AviatorStatus.FINISHED,
+        },
+      });
+
+      if (staleActiveGames.count > 0) {
+        this.logger.warn(
+          `🧹 Cleaned up ${staleActiveGames.count} stale ACTIVE games`,
+        );
+      }
+    } catch (error) {
+      this.logger.error('Failed to cleanup stale games', error);
     }
   }
 }

@@ -42,6 +42,8 @@ export class WebsocketGateway
   private currentGameId: number | null = null; // Current game ID being tracked
   private crashHistory: number[] = []; // История последних крашей (массив множителей)
   private readonly MAX_CRASH_HISTORY = 20; // Максимум 20 последних крашей
+  private gameStartTimeout: NodeJS.Timeout | null = null; // Timeout for auto-start
+  private gameCrashTimeout: NodeJS.Timeout | null = null; // Timeout for auto-crash
 
   constructor(
     private readonly jwtService: JwtService,
@@ -66,11 +68,17 @@ export class WebsocketGateway
       clearInterval(this.gameLoopInterval);
       this.logger.log('🛑 Game loop stopped');
     }
+    if (this.gameStartTimeout) {
+      clearTimeout(this.gameStartTimeout);
+    }
+    if (this.gameCrashTimeout) {
+      clearTimeout(this.gameCrashTimeout);
+    }
   }
 
   /**
    * Start the automatic game loop
-   * WAITING (10s) → ACTIVE (game duration) → FINISHED → new WAITING
+   * WAITING (5s) → ACTIVE (game duration) → FINISHED → new WAITING
    */
   private async startGameLoop() {
     try {
@@ -87,13 +95,35 @@ export class WebsocketGateway
       // Broadcast initial game state
       this.broadcastGameState(game);
 
-      // Check game state every second
-      this.logger.log(
-        '⏰ Setting up game loop interval (checking every 1 second)',
-      );
-      this.gameLoopInterval = setInterval(async () => {
-        await this.updateGameState();
-      }, 1000);
+      // Schedule auto-start for new game
+      const timeUntilStart = new Date(game.startsAt).getTime() - Date.now();
+      if (timeUntilStart > 0) {
+        this.logger.log(
+          `⏰ Scheduling game #${game.id} to start in ${Math.ceil(timeUntilStart / 1000)}s`,
+        );
+        this.gameStartTimeout = setTimeout(() => {
+          this.startGame(game.id);
+        }, timeUntilStart);
+      }
+
+      // Schedule auto-start if game is WAITING
+      if (game.status === 'WAITING') {
+        const timeUntilStart = new Date(game.startsAt).getTime() - Date.now();
+        if (timeUntilStart > 0) {
+          this.logger.log(
+            `⏰ Scheduling game #${game.id} to start in ${Math.ceil(timeUntilStart / 1000)}s`,
+          );
+          this.gameStartTimeout = setTimeout(() => {
+            this.startGame(game.id);
+          }, timeUntilStart);
+        } else {
+          // Game should have started already
+          this.logger.log(
+            `🚀 Game #${game.id} start time passed, starting immediately`,
+          );
+          this.startGame(game.id);
+        }
+      }
 
       this.logger.log(
         `✅ Game loop started successfully. Monitoring game #${game.id}`,
@@ -133,17 +163,18 @@ export class WebsocketGateway
   }
 
   /**
-   * Update game state based on current time and status
+   * Start the game - transition from WAITING to ACTIVE
    */
-  private async updateGameState() {
+  private async startGame(gameId: number) {
     try {
-      if (!this.currentGameId) {
-        this.logger.warn('⚠️ updateGameState called but currentGameId is null');
-        return;
-      }
+      this.logger.log(`🚀 Starting game #${gameId}`);
 
+      // Update game status to ACTIVE
+      await this.aviatorService.updateGameStatus(gameId, 'ACTIVE' as any);
+
+      // Get game with bets
       const game = await this.prisma.aviator.findUnique({
-        where: { id: this.currentGameId },
+        where: { id: gameId },
         include: {
           bets: {
             select: {
@@ -164,85 +195,36 @@ export class WebsocketGateway
       });
 
       if (!game) {
-        this.logger.warn(
-          `Game #${this.currentGameId} not found, creating new one`,
-        );
-        const newGame = await this.aviatorService.createOrGetAviator();
-        this.currentGameId = newGame.id;
-        this.broadcastGameState(newGame);
+        this.logger.error(`Game #${gameId} not found after starting`);
         return;
       }
 
-      const now = new Date();
-      const startsAt = new Date(game.startsAt);
+      // Emit status change
+      this.server.emit('aviator:statusChange', {
+        gameId: game.id,
+        status: 'ACTIVE',
+        timestamp: new Date().toISOString(),
+      });
 
-      // Debug logging for WAITING state
-      if (game.status === 'WAITING') {
-        const timeUntilStart = startsAt.getTime() - now.getTime();
-        this.logger.debug(
-          `⏳ Game #${game.id} WAITING: ${Math.ceil(timeUntilStart / 1000)}s until start (startsAt: ${startsAt.toISOString()}, now: ${now.toISOString()})`,
-        );
-      }
+      // Broadcast game state
+      this.broadcastGameState(game);
 
-      // WAITING → ACTIVE transition
-      if (game.status === 'WAITING' && now >= startsAt) {
-        this.logger.log(
-          `🚀 Game #${game.id} transitioning from WAITING to ACTIVE`,
-        );
+      // Calculate crash time based on multiplier
+      // Multiplier grows from 1.0x to crashPoint
+      // For simplicity, assume 1 second per 0.5x increase
+      const crashMultiplier = Number(game.multiplier);
+      const crashTimeMs = (crashMultiplier - 1.0) * 2000; // 2 seconds per 1.0x
 
-        const updatedGame = await this.aviatorService.updateGameStatus(
-          game.id,
-          'ACTIVE' as any,
-        );
+      this.logger.log(
+        `💥 Game #${gameId} will crash at ${crashMultiplier}x in ${Math.ceil(crashTimeMs / 1000)}s`,
+      );
 
-        const gameWithBets = await this.prisma.aviator.findUnique({
-          where: { id: game.id },
-          include: {
-            bets: {
-              select: {
-                id: true,
-                amount: true,
-                cashedAt: true,
-                createdAt: true,
-                user: {
-                  select: {
-                    id: true,
-                    username: true,
-                    telegramId: true,
-                  },
-                },
-              },
-            },
-          },
-        });
-
-        this.server.emit('aviator:statusChange', {
-          gameId: game.id,
-          status: 'ACTIVE',
-          timestamp: now.toISOString(),
-        });
-
-        this.broadcastGameState(gameWithBets);
-      }
-
-      // Note: ACTIVE → FINISHED transition is now handled by frontend
-      // Frontend will call 'aviator:notifyCrash' when the game crashes
-
-      // Broadcast countdown for WAITING games
-      if (game.status === 'WAITING') {
-        const timeLeft = Math.max(
-          0,
-          Math.ceil((startsAt.getTime() - now.getTime()) / 1000),
-        );
-
-        this.server.emit('aviator:countdown', {
-          gameId: game.id,
-          secondsLeft: timeLeft,
-          startsAt: startsAt.toISOString(),
-        });
-      }
+      // Schedule crash
+      this.gameCrashTimeout = setTimeout(() => {
+        this.crashGame(gameId);
+      }, crashTimeMs);
     } catch (error) {
-      this.logger.error('Error in updateGameState', error);
+      this.logger.error(`Error starting game #${gameId}:`, error);
     }
   }
 
@@ -276,7 +258,193 @@ export class WebsocketGateway
   }
 
   /**
+   * Crash the game - transition from ACTIVE to FINISHED
+   */
+  private async crashGame(gameId: number) {
+    try {
+      this.logger.log(`💥 Crashing game #${gameId}`);
+
+      // Get game with bets before updating
+      const game = await this.prisma.aviator.findUnique({
+        where: { id: gameId },
+        include: {
+          bets: {
+            select: {
+              id: true,
+              amount: true,
+              cashedAt: true,
+              createdAt: true,
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                  telegramId: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!game) {
+        this.logger.error(`Game #${gameId} not found for crash`);
+        return;
+      }
+
+      if (game.status !== 'ACTIVE') {
+        this.logger.warn(
+          `Game #${gameId} is not ACTIVE (status: ${game.status}), skipping crash`,
+        );
+        return;
+      }
+
+      // Update game status to FINISHED
+      await this.aviatorService.updateGameStatus(gameId, 'FINISHED' as any);
+
+      const crashMultiplier = Number(game.multiplier);
+
+      // Add to crash history
+      this.addToCrashHistory(crashMultiplier);
+
+      // Emit crashed event
+      this.server.emit('aviator:crashed', {
+        gameId: game.id,
+        multiplier: crashMultiplier,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Process game results (send win/lose events)
+      await this.processGameResults(game);
+
+      // Broadcast crash history
+      this.broadcastCrashHistory();
+
+      // Emit status change
+      this.server.emit('aviator:statusChange', {
+        gameId: game.id,
+        status: 'FINISHED',
+        timestamp: new Date().toISOString(),
+      });
+
+      this.logger.log(
+        `✅ Game #${gameId} crashed at ${crashMultiplier}x. Creating new game in 3s...`,
+      );
+
+      // Create new game after 3 seconds
+      setTimeout(async () => {
+        try {
+          const newGame = await this.aviatorService.createOrGetAviator();
+          this.currentGameId = newGame.id;
+          this.logger.log(
+            `🆕 New game #${newGame.id} created with status ${newGame.status}`,
+          );
+          this.broadcastGameState(newGame);
+
+          // Schedule auto-start for new game
+          const timeUntilStart =
+            new Date(newGame.startsAt).getTime() - Date.now();
+          if (timeUntilStart > 0) {
+            this.logger.log(
+              `⏰ Scheduling game #${newGame.id} to start in ${Math.ceil(timeUntilStart / 1000)}s`,
+            );
+            this.gameStartTimeout = setTimeout(() => {
+              this.startGame(newGame.id);
+            }, timeUntilStart);
+          }
+        } catch (error) {
+          this.logger.error('Error creating new game after crash:', error);
+        }
+      }, 3000);
+    } catch (error) {
+      this.logger.error(`Error crashing game #${gameId}:`, error);
+    }
+  }
+
+  /**
+   * Process game results - send win/lose events to all players
+   */
+  private async processGameResults(game: any) {
+    try {
+      const crashMultiplier = Number(game.multiplier);
+
+      if (!game.bets || game.bets.length === 0) {
+        this.logger.debug('No bets in game, skipping results processing');
+        return;
+      }
+
+      for (const bet of game.bets) {
+        try {
+          const userId = bet.user?.id;
+          const username = bet.user?.username || 'Unknown';
+
+          if (!userId) {
+            this.logger.warn(`Bet #${bet.id} has no user ID, skipping`);
+            continue;
+          }
+
+          const socketId = this.activeUsers.get(userId);
+          const betAmount = Number(bet.amount);
+          const cashedAt = bet.cashedAt ? Number(bet.cashedAt) : null;
+
+          // Player won if they cashed out
+          if (cashedAt !== null) {
+            const winAmount = Math.floor(betAmount * cashedAt);
+            const winEvent = {
+              betId: bet.id,
+              betAmount: betAmount,
+              cashedAt: cashedAt,
+              winAmount: winAmount,
+              crashMultiplier: crashMultiplier,
+              timestamp: new Date().toISOString(),
+            };
+
+            // Send to specific user if connected
+            if (socketId) {
+              const socket = this.server.sockets.sockets.get(socketId);
+              if (socket) {
+                socket.emit('aviator:win', winEvent);
+              }
+            }
+
+            this.logger.log(
+              `✅ WIN: ${username} won ${winAmount} (cashed at ${cashedAt}x)`,
+            );
+          }
+          // Player lost if they didn't cash out
+          else {
+            const loseEvent = {
+              betId: bet.id,
+              betAmount: betAmount,
+              crashMultiplier: crashMultiplier,
+            };
+
+            // Send to specific user if connected
+            if (socketId) {
+              const socket = this.server.sockets.sockets.get(socketId);
+              if (socket) {
+                socket.emit('aviator:lose', loseEvent);
+              }
+            }
+
+            this.logger.log(
+              `❌ LOSE: ${username} lost ${betAmount} (crashed at ${crashMultiplier}x)`,
+            );
+          }
+        } catch (betError) {
+          this.logger.error(
+            `Error processing result for bet #${bet.id}:`,
+            betError,
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.error('Error in processGameResults:', error);
+    }
+  }
+
+  /**
    * Send personalized win/lose events to each player after game crash
+   * @deprecated Use processGameResults instead
    */
   private async sendWinLoseEvents(game: any) {
     try {
@@ -1070,145 +1238,6 @@ export class WebsocketGateway
         event: 'error',
         data: {
           message: error.message || 'Failed to get current bets',
-        },
-      };
-    }
-  }
-
-  /**
-   * Frontend notifies backend that the game has crashed
-   * This replaces the automatic crash detection logic
-   */
-  @UseGuards(WsJwtGuard)
-  @SubscribeMessage('aviator:notifyCrash')
-  async handleNotifyCrash(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { gameId: number },
-  ) {
-    this.logger.log(
-      `🎮 HANDLER START: aviator:notifyCrash from client ${client.id}, userId: ${client.data.userId}, gameId: ${data.gameId}`,
-    );
-
-    try {
-      if (!data.gameId) {
-        this.logger.warn(
-          `Invalid crash notification from client ${client.id}: missing gameId`,
-        );
-        return {
-          event: 'error',
-          data: {
-            message: 'gameId is required',
-          },
-        };
-      }
-
-      // Verify the game exists and is in ACTIVE status
-      const game = await this.prisma.aviator.findUnique({
-        where: { id: data.gameId },
-        include: {
-          bets: {
-            select: {
-              id: true,
-              amount: true,
-              cashedAt: true,
-              createdAt: true,
-              user: {
-                select: {
-                  id: true,
-                  username: true,
-                  telegramId: true,
-                },
-              },
-            },
-          },
-        },
-      });
-
-      if (!game) {
-        this.logger.warn(
-          `Game #${data.gameId} not found for crash notification`,
-        );
-        return {
-          event: 'error',
-          data: {
-            message: 'Game not found',
-          },
-        };
-      }
-
-      // Only process if game is ACTIVE
-      if (game.status !== 'ACTIVE') {
-        this.logger.warn(
-          `Game #${data.gameId} is not ACTIVE (status: ${game.status}), ignoring crash notification`,
-        );
-        return {
-          event: 'error',
-          data: {
-            message: `Game is not active (current status: ${game.status})`,
-          },
-        };
-      }
-
-      this.logger.log(
-        `💥 Processing crash for game #${game.id} at ${game.multiplier}x`,
-      );
-
-      // Update game status to FINISHED
-      await this.aviatorService.updateGameStatus(game.id, 'FINISHED' as any);
-
-      const crashMultiplier = Number(game.multiplier);
-
-      // Add to crash history
-      this.addToCrashHistory(crashMultiplier);
-
-      // Send personalized win/lose events to each player
-      await this.sendWinLoseEvents(game);
-
-      // Broadcast crash history to all clients
-      this.broadcastCrashHistory();
-
-      // Broadcast status change
-      this.server.emit('aviator:statusChange', {
-        gameId: game.id,
-        status: 'FINISHED',
-        timestamp: new Date().toISOString(),
-      });
-
-      this.logger.log(
-        `✅ Game #${game.id} crash processed successfully. Creating new game in 3 seconds...`,
-      );
-
-      // Wait 3 seconds before creating new game
-      setTimeout(async () => {
-        try {
-          const newGame = await this.aviatorService.createOrGetAviator();
-          this.currentGameId = newGame.id;
-          this.logger.log(
-            `🆕 New game #${newGame.id} created with status ${newGame.status}`,
-          );
-          this.broadcastGameState(newGame);
-        } catch (error) {
-          this.logger.error('Error creating new game after crash:', error);
-        }
-      }, 3000);
-
-      return {
-        event: 'aviator:crashProcessed',
-        data: {
-          gameId: game.id,
-          multiplier: crashMultiplier,
-          timestamp: new Date().toISOString(),
-        },
-      };
-    } catch (error) {
-      this.logger.error(
-        `Error processing crash notification: ${error.message}`,
-        error.stack,
-      );
-      return {
-        event: 'error',
-        data: {
-          message: error.message || 'Failed to process crash notification',
         },
       };
     }

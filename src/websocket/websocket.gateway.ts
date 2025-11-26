@@ -441,8 +441,14 @@ export class WebsocketGateway
 
       this.server.emit('aviator:crashed', crashEvent);
 
+      // Get connected clients count safely
+      const connectedClientsCount =
+        this.server.sockets?.sockets?.size ||
+        this.activeUsers.size ||
+        'unknown';
+
       this.logger.log(
-        `✅ [Gateway] aviator:crashed event SENT to ${this.server.sockets.sockets.size} connected clients`,
+        `✅ [Gateway] aviator:crashed event SENT to ${connectedClientsCount} connected clients`,
       );
 
       // Process game results (send win/lose events)
@@ -608,7 +614,7 @@ export class WebsocketGateway
 
             // Send to specific user if connected
             if (socketId) {
-              const socket = this.server.sockets.sockets.get(socketId);
+              const socket = this.getSocketById(socketId);
               if (socket) {
                 socket.emit('aviator:win', winEvent);
                 this.logger.log(
@@ -640,7 +646,7 @@ export class WebsocketGateway
 
             // Send to specific user if connected
             if (socketId) {
-              const socket = this.server.sockets.sockets.get(socketId);
+              const socket = this.getSocketById(socketId);
               if (socket) {
                 socket.emit('aviator:lose', loseEvent);
                 this.logger.log(
@@ -717,7 +723,7 @@ export class WebsocketGateway
             continue;
           }
 
-          const socket = this.server.sockets.sockets.get(socketId);
+          const socket = this.getSocketById(socketId);
 
           if (!socket) {
             this.logger.debug(
@@ -861,8 +867,7 @@ export class WebsocketGateway
       // Check if user already has an active connection
       const existingSocketId = this.activeUsers.get(user.id);
       if (existingSocketId) {
-        const existingSocket =
-          this.server.sockets.sockets.get(existingSocketId);
+        const existingSocket = this.getSocketById(existingSocketId);
         if (existingSocket) {
           this.logger.log(
             `User ${user.username} (${user.id}) already connected. Disconnecting old socket ${existingSocketId}`,
@@ -1527,6 +1532,20 @@ export class WebsocketGateway
     }
   }
 
+  /**
+   * Safely get a socket by ID
+   * @param socketId Socket ID to retrieve
+   * @returns Socket instance or undefined if not found
+   */
+  private getSocketById(socketId: string): Socket | undefined {
+    try {
+      return this.server?.sockets?.sockets?.get(socketId);
+    } catch (error) {
+      this.logger.warn(`Failed to get socket ${socketId}:`, error);
+      return undefined;
+    }
+  }
+
   // Helper method to get active users count
   getActiveUsersCount(): number {
     return this.activeUsers.size;
@@ -1550,7 +1569,7 @@ export class WebsocketGateway
   > {
     const details = [];
     this.activeUsers.forEach((socketId, userId) => {
-      const socket = this.server.sockets.sockets.get(socketId);
+      const socket = this.getSocketById(socketId);
       if (socket) {
         details.push({
           userId,

@@ -193,10 +193,17 @@ export class WebsocketGateway
 
       // Schedule crash
       this.gameCrashTimeout = setTimeout(() => {
+        this.logger.log(
+          `⏰ [Gateway] ⚡ CRASH TIMEOUT TRIGGERED (cron-started) for game #${game.id} after ${crashTimeMs}ms`,
+        );
         this.crashGame(game.id).catch((err) =>
-          this.logger.error('Failed to crash game', err),
+          this.logger.error('[Gateway] Failed to crash cron-started game', err),
         );
       }, crashTimeMs);
+
+      this.logger.log(
+        `⏰ [Gateway] Crash scheduled in ${crashTimeMs}ms (${Math.ceil(crashTimeMs / 1000)}s) at ${crashMultiplier}x`,
+      );
     } catch (error) {
       this.logger.error(`[Gateway] Error handling cron-started game:`, error);
     }
@@ -252,13 +259,21 @@ export class WebsocketGateway
       // Schedule crash
       this.gameCrashTimeout = setTimeout(() => {
         this.logger.log(
-          `⏰ [Gateway] Crash timeout triggered for game #${gameId}`,
+          `⏰ [Gateway] ⚡ CRASH TIMEOUT TRIGGERED for game #${gameId} after ${crashTimeMs}ms`,
         );
-        this.crashGame(gameId);
+        this.crashGame(gameId).catch((err) =>
+          this.logger.error(
+            `[Gateway] ❌ Failed to crash game #${gameId}:`,
+            err,
+          ),
+        );
       }, crashTimeMs);
 
       this.logger.log(
         `✅ [Gateway] ===== GAME #${gameId} STARTED SUCCESSFULLY =====`,
+      );
+      this.logger.log(
+        `⏰ [Gateway] Crash scheduled in ${crashTimeMs}ms (${Math.ceil(crashTimeMs / 1000)}s) at ${crashMultiplier}x`,
       );
     } catch (error) {
       this.logger.error(`[Gateway] ❌ Error starting game #${gameId}:`, error);
@@ -414,13 +429,21 @@ export class WebsocketGateway
       this.addToCrashHistory(crashMultiplier);
 
       // Emit crashed event
-      this.server.emit('aviator:crashed', {
+      const crashEvent = {
         gameId: game.id,
         multiplier: crashMultiplier,
         timestamp: new Date().toISOString(),
-      });
+      };
 
-      this.logger.log(`📡 [Gateway] Broadcasted aviator:crashed event`);
+      this.logger.log(
+        `📡 [Gateway] EMITTING aviator:crashed event: ${JSON.stringify(crashEvent)}`,
+      );
+
+      this.server.emit('aviator:crashed', crashEvent);
+
+      this.logger.log(
+        `✅ [Gateway] aviator:crashed event SENT to ${this.server.sockets.sockets.size} connected clients`,
+      );
 
       // Process game results (send win/lose events)
       await this.processGameResults(game);
@@ -536,8 +559,14 @@ export class WebsocketGateway
     try {
       const crashMultiplier = Number(game.multiplier);
 
+      this.logger.log(
+        `🎲 [Gateway] Processing game results for ${game.bets?.length || 0} bets at ${crashMultiplier}x`,
+      );
+
       if (!game.bets || game.bets.length === 0) {
-        this.logger.debug('No bets in game, skipping results processing');
+        this.logger.log(
+          '📝 [Gateway] No bets in game, skipping results processing',
+        );
         return;
       }
 
@@ -547,13 +576,19 @@ export class WebsocketGateway
           const username = bet.user?.username || 'Unknown';
 
           if (!userId) {
-            this.logger.warn(`Bet #${bet.id} has no user ID, skipping`);
+            this.logger.warn(
+              `⚠️ [Gateway] Bet #${bet.id} has no user ID, skipping`,
+            );
             continue;
           }
 
           const socketId = this.activeUsers.get(userId);
           const betAmount = Number(bet.amount);
           const cashedAt = bet.cashedAt ? Number(bet.cashedAt) : null;
+
+          this.logger.log(
+            `🎯 [Gateway] Processing bet #${bet.id} for user ${username} (${userId}), socketId: ${socketId || 'NOT CONNECTED'}`,
+          );
 
           // Player won if they cashed out
           if (cashedAt !== null) {
@@ -567,17 +602,28 @@ export class WebsocketGateway
               timestamp: new Date().toISOString(),
             };
 
+            this.logger.log(
+              `📤 [Gateway] EMITTING aviator:win to ${username}: ${JSON.stringify(winEvent)}`,
+            );
+
             // Send to specific user if connected
             if (socketId) {
               const socket = this.server.sockets.sockets.get(socketId);
               if (socket) {
                 socket.emit('aviator:win', winEvent);
+                this.logger.log(
+                  `✅ [Gateway] WIN event SENT to ${username} (won ${winAmount} at ${cashedAt}x)`,
+                );
+              } else {
+                this.logger.warn(
+                  `⚠️ [Gateway] Socket not found for user ${username}, cannot send win event`,
+                );
               }
+            } else {
+              this.logger.warn(
+                `⚠️ [Gateway] User ${username} not connected, cannot send win event`,
+              );
             }
-
-            this.logger.log(
-              `✅ WIN: ${username} won ${winAmount} (cashed at ${cashedAt}x)`,
-            );
           }
           // Player lost if they didn't cash out
           else {
@@ -585,29 +631,45 @@ export class WebsocketGateway
               betId: bet.id,
               betAmount: betAmount,
               crashMultiplier: crashMultiplier,
+              timestamp: new Date().toISOString(),
             };
+
+            this.logger.log(
+              `📤 [Gateway] EMITTING aviator:lose to ${username}: ${JSON.stringify(loseEvent)}`,
+            );
 
             // Send to specific user if connected
             if (socketId) {
               const socket = this.server.sockets.sockets.get(socketId);
               if (socket) {
                 socket.emit('aviator:lose', loseEvent);
+                this.logger.log(
+                  `❌ [Gateway] LOSE event SENT to ${username} (lost ${betAmount} at ${crashMultiplier}x)`,
+                );
+              } else {
+                this.logger.warn(
+                  `⚠️ [Gateway] Socket not found for user ${username}, cannot send lose event`,
+                );
               }
+            } else {
+              this.logger.warn(
+                `⚠️ [Gateway] User ${username} not connected, cannot send lose event`,
+              );
             }
-
-            this.logger.log(
-              `❌ LOSE: ${username} lost ${betAmount} (crashed at ${crashMultiplier}x)`,
-            );
           }
         } catch (betError) {
           this.logger.error(
-            `Error processing result for bet #${bet.id}:`,
+            `❌ [Gateway] Error processing result for bet #${bet.id}:`,
             betError,
           );
         }
       }
+
+      this.logger.log(
+        `✅ [Gateway] Finished processing all ${game.bets.length} bets`,
+      );
     } catch (error) {
-      this.logger.error('Error in processGameResults:', error);
+      this.logger.error('❌ [Gateway] Error in processGameResults:', error);
     }
   }
 

@@ -492,6 +492,22 @@ export class WebsocketGateway
               `🆕 [Gateway] New game #${newGame.id} created successfully with status ${newGame.status}, startsAt: ${new Date(newGame.startsAt).toISOString()}`,
             );
 
+            // 🚨 IMPORTANT: Join ALL connected clients to the new game room
+            const newGameRoom = `aviator-game-${newGame.id}`;
+            const connectedSockets = await this.server.fetchSockets();
+
+            this.logger.log(
+              `🚪 [Gateway] Joining ${connectedSockets.length} connected clients to new game room: ${newGameRoom}`,
+            );
+
+            for (const socket of connectedSockets) {
+              socket.join(newGameRoom);
+            }
+
+            this.logger.log(
+              `✅ [Gateway] All clients joined game room: ${newGameRoom}`,
+            );
+
             // Broadcast new game state
             this.broadcastGameState(newGame);
             this.logger.log(
@@ -945,19 +961,36 @@ export class WebsocketGateway
       client.data.role = user.role;
 
       // 🚨 CRITICAL: Join user to personal room for targeted events (win/lose)
+      // Each user has their OWN personal room (userId)
       client.join(user.id);
       this.logger.log(
         `🚪 [Gateway] User ${user.username} joined personal room: ${user.id}`,
       );
 
-      // Join current game room if exists
+      // Join SHARED game room if current game exists
+      // ALL players join the SAME game room (aviator-game-{gameId})
       try {
-        const currentGame = await this.aviatorService.getCurrentGame();
+        // Try to get current game (may not exist yet)
+        const currentGame = await this.prisma.aviator.findFirst({
+          where: {
+            status: {
+              in: ['WAITING', 'ACTIVE'],
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        });
+
         if (currentGame) {
           const gameRoom = `aviator-game-${currentGame.id}`;
           client.join(gameRoom);
           this.logger.log(
-            `🚪 [Gateway] User ${user.username} joined game room: ${gameRoom}`,
+            `🚪 [Gateway] User ${user.username} joined SHARED game room: ${gameRoom}`,
+          );
+        } else {
+          this.logger.log(
+            `📝 [Gateway] No active game yet, user ${user.username} will join game room when game is created`,
           );
         }
       } catch (error) {

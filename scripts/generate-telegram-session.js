@@ -2,8 +2,8 @@ const { TelegramClient } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const readline = require('readline');
 
-const apiId = 26332781;
-const apiHash = '325464317bade2271d9f24bc415e62af';
+const apiId = 32034958;
+const apiHash = 'a549f5b6c1f63b8e3e181b79e5b745a4';
 
 const rl = readline.createInterface({
   input: process.stdin,

@@ -6,6 +6,9 @@ import { JwtModule, JwtService } from '@nestjs/jwt';
 import { BotService } from './services/bot.service';
 import { ConfigService } from '@nestjs/config';
 import { ReferralService } from './services/referral.service';
+import { GiftService } from './services/gift.service';
+import { TelegramUserbotService } from './services/telegram-userbot.service';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Global()
 @Module({
@@ -17,6 +20,7 @@ import { ReferralService } from './services/referral.service';
       }),
       inject: [ConfigService],
     }),
+    ScheduleModule.forRoot(),
   ],
   providers: [
     PrismaService,
@@ -24,6 +28,8 @@ import { ReferralService } from './services/referral.service';
     CronService,
     JwtStrategy,
     ReferralService,
+    GiftService,
+    TelegramUserbotService,
   ],
   exports: [
     PrismaService,
@@ -32,6 +38,8 @@ import { ReferralService } from './services/referral.service';
     JwtStrategy,
     JwtModule,
     ReferralService,
+    GiftService,
+    TelegramUserbotService,
   ],
 })
 export class SharedModule {}

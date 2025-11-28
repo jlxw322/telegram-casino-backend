@@ -31,6 +31,9 @@ enum SystemKey {
   AVIATOR_SERVER_SEED
   DEPOSIT
   UPGRADE
+  TELEGRAM_API_ID
+  TELEGRAM_API_HASH
+  TELEGRAM_SESSION_STRING
 }
 
 enum PaymentStatus {
@@ -42,6 +45,17 @@ enum PaymentStatus {
 enum Currency {
   XTR
   TON
+}
+
+enum TelegramGiftStatus {
+  PENDING
+  CONVERTED
+  USED
+}
+
+enum TelegramGiftType {
+  STAR_GIFT
+  STAR_GIFT_UNIQUE
 }
 
 model User {
@@ -68,6 +82,7 @@ model User {
   upgrades          Upgrade[]
   referralEarnings  ReferralEarning[]   @relation("ReferrerEarnings") // Earnings as a referrer
   referralSources   ReferralEarning[]   @relation("ReferredUserPayments") // Payments that generated referrals
+  telegramGifts     TelegramGift[]      @relation("UserGifts") // Telegram gifts received
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -85,9 +100,10 @@ model InventoryItem {
   prizeId Int
   caseId  Int?
 
-  user  User  @relation("UserInventory", fields: [userId], references: [id])
-  prize Prize @relation("InventoryPrizes", fields: [prizeId], references: [id])
-  case  Case? @relation("InventoryCase", fields: [caseId], references: [id])
+  user         User           @relation("UserInventory", fields: [userId], references: [id])
+  prize        Prize          @relation("InventoryPrizes", fields: [prizeId], references: [id])
+  case         Case?          @relation("InventoryCase", fields: [caseId], references: [id])
+  telegramGift TelegramGift?  @relation("GiftInventoryItem")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -96,10 +112,10 @@ model InventoryItem {
 }
 
 model Prize {
-  id     Int    @id @default(autoincrement())
-  name   String
-  amount Int
-  url    String
+  id        Int     @id @default(autoincrement())
+  name      String
+  amount    Int
+  url       String
 
   inventory       InventoryItem[] @relation("InventoryPrizes")
   case            CaseItem[]      @relation("GiftItems")
@@ -110,6 +126,40 @@ model Prize {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model TelegramGift {
+  id                  Int                   @id @default(autoincrement())
+  userId              String
+  telegramUserId      String
+  telegramMessageId   String
+  giftType            TelegramGiftType
+  isUnique            Boolean               @default(false)
+  starsValue          Int?
+  nftTitle            String?
+  nftNumber           String?
+  nftTotalCount       String?
+  nftAttributes       Json?
+  senderTelegramId    String?
+  senderName          String?
+  isAnonymous         Boolean               @default(false)
+  status              TelegramGiftStatus    @default(PENDING)
+  convertedValue      Int?
+  convertedAt         DateTime?
+  inventoryItemId     Int?                  @unique
+  receivedAt          DateTime
+  rawMessage          Json
+  
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  
+  user                User                  @relation("UserGifts", fields: [userId], references: [id], onDelete: Cascade)
+  inventoryItem       InventoryItem?        @relation("GiftInventoryItem", fields: [inventoryItemId], references: [id])
+  
+  @@unique([telegramUserId, telegramMessageId])
+  @@index([userId, status])
+  @@index([status])
+  @@map("telegram_gifts")
 }
 
 model CaseItem {

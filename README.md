@@ -27,6 +27,7 @@
 Telegram Casino Backend - A NestJS backend for a Telegram Mini App casino game featuring:
 
 - 🎰 **Casino Games**: Case opening system and Aviator crash game
+- 🎁 **Telegram Gifts**: Receive, convert, and send Telegram Star gifts as prizes
 - 🔐 **Provably Fair**: HMAC-SHA256 based algorithm for verifiable game outcomes
 - 🤖 **Telegram Integration**: Grammy bot framework with WebApp support
 - 🔑 **JWT Authentication**: Secure user authentication via Telegram initData
@@ -35,6 +36,20 @@ Telegram Casino Backend - A NestJS backend for a Telegram Mini App casino game f
 - 💰 **Payment System**: Telegram Stars integration
 
 ## Key Features
+
+### Telegram Gifts Integration (NEW! 🎁)
+
+Automatically receive, manage, and distribute Telegram gifts as casino prizes:
+
+- **Automatic Gift Monitoring**: Detects incoming Telegram Star gifts (regular and NFT)
+- **Gift-to-Prize Conversion**: Transform gifts into prizes for casino cases
+- **Gift-to-Inventory**: Award gifts directly to user inventories
+- **Gift Notifications**: Send Telegram messages when users win gift prizes
+- **Media Support**: Downloads and stores NFT animations and images
+
+📖 [Telegram Gifts Quick Start](docs/TELEGRAM_GIFTS_QUICKSTART.md)  
+📖 [Telegram Gifts Full Guide](docs/TELEGRAM_GIFTS_GUIDE.md)  
+📖 [Implementation Summary](docs/TELEGRAM_GIFTS_IMPLEMENTATION_SUMMARY.md)
 
 ### Provably Fair Aviator Game
 
@@ -95,6 +110,16 @@ WEBAPP_URL=https://your-webapp.com
 PORT=3000
 ```
 
+**Optional: Telegram Gifts Integration**
+
+To enable Telegram gifts monitoring, add these to your `System` table (via Prisma Studio):
+
+- `TELEGRAM_API_ID` - Your Telegram API ID from https://my.telegram.org/apps
+- `TELEGRAM_API_HASH` - Your Telegram API Hash
+- `TELEGRAM_SESSION_STRING` - Generated via `scripts/generate-telegram-session.js`
+
+📖 See [Telegram Gifts Quick Start](docs/TELEGRAM_GIFTS_QUICKSTART.md) for setup instructions
+
 ## Compile and run the project
 
 ```bash
@@ -128,9 +153,10 @@ src/
 ├── admin/          # Admin-only endpoints (users, cases, prizes, aviator)
 ├── auth/           # Admin authentication
 ├── case/           # Case opening game endpoints
+├── gift/           # Telegram gifts management (NEW!)
 ├── payment/        # Payment processing (Telegram Stars)
 ├── shared/         # Global services and utilities
-│   ├── services/   # Prisma, Bot, JWT, Cron, Referral
+│   ├── services/   # Prisma, Bot, JWT, Cron, Referral, Gift, TelegramUserbot
 │   ├── guards/     # Authentication guards
 │   └── strategies/ # JWT strategy
 ├── system/         # System settings management
@@ -146,7 +172,13 @@ docs/
 ├── PROVABLY_FAIR.md              # Provably fair algorithm docs
 ├── PROVABLY_FAIR_IMPLEMENTATION.md  # Implementation guide
 ├── PROVABLY_FAIR_QUICKREF.md     # Quick reference
-└── MIGRATION_PROVABLY_FAIR.sql   # Migration notes
+├── MIGRATION_PROVABLY_FAIR.sql   # Migration notes
+├── TELEGRAM_GIFTS_QUICKSTART.md  # Gifts setup guide (NEW!)
+├── TELEGRAM_GIFTS_GUIDE.md       # Gifts full documentation (NEW!)
+└── TELEGRAM_GIFTS_IMPLEMENTATION_SUMMARY.md  # Implementation summary (NEW!)
+
+scripts/
+└── generate-telegram-session.js  # Telegram session generator (NEW!)
 ```
 
 ## API Endpoints
@@ -157,6 +189,10 @@ docs/
 - `GET /user/profile` - Get user profile
 - `GET /case` - List all cases
 - `POST /case/:id/open` - Open a case
+- `GET /gift/my-gifts` - Get current user's Telegram gifts (NEW!)
+- `POST /gift/convert-to-inventory` - Convert gift to inventory item (NEW!)
+- `GET /gift/available` - Get available gifts for conversion (NEW!)
+- `GET /gift/nft` - View NFT gifts (NEW!)
 
 ### Admin Endpoints (require admin token)
 
@@ -168,6 +204,9 @@ docs/
 - `PUT /admin/user/:id/ban` - Ban/unban user
 - `GET /admin/case` - Manage cases
 - `GET /admin/prize` - Manage prizes
+- `GET /admin/gift/all` - Get all gifts (NEW!)
+- `POST /admin/gift/convert-to-prize` - Convert gift to prize (NEW!)
+- `POST /admin/gift/send-notification` - Send gift notification via Telegram (NEW!)
 
 📖 Full API documentation available at `/api` when running the server (Swagger UI)
 

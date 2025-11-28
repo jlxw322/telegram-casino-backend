@@ -12,7 +12,7 @@ async function main() {
     update: { value: '8065350754:AAE4rUZ8UzYEIVqgibYQOGvHwfs2kJ3P06I' },
     create: {
       key: SystemKey.TELEGRAM_BOT_TOKEN,
-      value: '8065350754:AAE4rUZ8UzYEIVqgibYQOGvHwfs2kJ3P06I',
+      value: '8065350754:a549f5b6c1f63b8e3e181b79e5b745a4',
     },
   });
   console.log('✓ Telegram bot token seeded');
@@ -31,14 +31,14 @@ async function main() {
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('🤖 TELEGRAM BOT');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('Token: 8065350754:AAE4rUZ8UzYEIVqgibYQOGvHwfs2kJ3P06I');
+  console.log('Token: 8065350754:a549f5b6c1f63b8e3e181b79e5b745a4');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
   console.log('\nSeeding admin user...');
 
   // Create test admin user with strong credentials
   const adminLogin = 'superadmin';
-  const adminPassword = 'Admin@2024!SecurePass';
+  const adminPassword = '123123';
   const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
   await prisma.admin.upsert({
